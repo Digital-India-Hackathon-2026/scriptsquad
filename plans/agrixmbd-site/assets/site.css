@@ -1,0 +1,30 @@
+:root{
+  --bg:#050a07; --panel:#0d2418; --panel-2:#123020; --border:#1e4a30;
+  --text:#e8f3ec; --text-dim:#8fb39d; --accent:#4ade8a; --accent-dim:#2e8a5a;
+  --warn:#f2b544; --danger:#e2574c; --blue:#4a9ee0;
+  --nav-h:56px;
+}
+*{ box-sizing:border-box; }
+body{ margin:0; font-family:'Segoe UI', system-ui, sans-serif; background:var(--bg); color:var(--text); }
+
+/* ---------- site-wide nav ---------- */
+#site-nav{
+  height:var(--nav-h); display:flex; align-items:center; justify-content:space-between;
+  padding:0 22px; background:var(--panel); border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100;
+}
+#site-nav .brand{ display:flex; align-items:center; gap:9px; font-weight:600; font-size:15px; color:var(--accent); text-decoration:none; }
+#site-nav .brand .dot{ width:9px; height:9px; border-radius:50%; background:var(--accent); box-shadow:0 0 8px var(--accent); }
+#site-nav .links{ display:flex; gap:4px; }
+#site-nav .links a{
+  color:var(--text-dim); text-decoration:none; font-size:13px; padding:8px 14px; border-radius:7px; transition:.15s;
+}
+#site-nav .links a:hover{ color:var(--text); background:rgba(255,255,255,0.05); }
+#site-nav .links a.active{ color:var(--accent); background:rgba(74,222,138,0.1); }
+#site-nav .badge{ font-size:10px; color:var(--text-dim); border:1px solid var(--border); padding:4px 9px; border-radius:20px; }
+
+/* ---------- shared components ---------- */
+.container{ max-width:1180px; margin:0 auto; padding:0 24px; }
+.btn{ display:inline-block; background:var(--accent-dim); color:#eafff2; border:none; padding:11px 20px; border-radius:8px; font-size:13px; font-weight:500; text-decoration:none; cursor:pointer; }
+.btn.ghost{ background:transparent; border:1px solid var(--border); color:var(--text); }
+.card{ background:var(--panel-2); border:1px solid var(--border); border-radius:12px; padding:20px; }

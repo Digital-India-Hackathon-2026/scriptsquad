@@ -1,0 +1,8 @@
+File length: 68051
+Contains 'groundwater': False
+Contains 'subsoil': False
+Contains 'topsoil': False
+Contains 'fertility': False
+Contains '3D Soil Layer Inspector': False
+Contains 'Simulation overrides': False
+Contains 'Manual parameters': False

@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGRIXMBD 2.0 — Digital Twin</title>
+<link rel="stylesheet" href="assets/site.css">
+<style>
+  html, body{ height:100%; overflow:hidden; }
+  #app-wrapper{ height:calc(100vh - var(--nav-h)); display:flex; }
+  #sidebar{ width:340px; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
+  #sidebar-header{ padding:16px 20px 10px; border-bottom:1px solid var(--border); }
+  #sidebar-header h1{ font-size:15px; margin:0 0 3px; color:var(--accent); letter-spacing:0.3px; }
+  #sidebar-header p{ font-size:11px; color:var(--text-dim); margin:0; }
+  #ai-status{ padding:10px 20px; border-bottom:1px solid var(--border); font-size:11px; color:var(--accent); display:flex; align-items:center; gap:6px; }
+  #plot-list{ flex:1; overflow-y:auto; padding:10px 14px; }
+  .plot-card{ background:var(--panel-2); border:1px solid var(--border); border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .plot-card-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .plot-card-top strong{ font-size:13px; }
+  .crop-tag{ font-size:10px; color:var(--text-dim); background:rgba(255,255,255,0.06); padding:2px 6px; border-radius:4px; }
+  .status-dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; }
+  .stat-row{ display:flex; justify-content:space-between; font-size:11px; color:var(--text-dim); margin:2px 0; }
+  .stat-row span:last-child{ color:var(--text); font-weight:500; }
+  #alert-panel{ border-top:1px solid var(--border); max-height:240px; display:flex; flex-direction:column; }
+  #alert-panel h2{ font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-dim); padding:10px 20px 6px; margin:0; }
+  #alert-list{ overflow-y:auto; padding:0 14px 14px; }
+  .alert-item{ font-size:11px; padding:6px 10px; border-radius:6px; margin-bottom:6px; border-left:3px solid var(--warn); background:rgba(242,181,68,0.08); }
+  .alert-item.danger{ border-left-color:var(--danger); background:rgba(226,87,76,0.08); }
+  .alert-time{ color:var(--text-dim); font-size:10px; }
+
+  #main{ flex:1; position:relative; display:flex; flex-direction:column; background:#000; }
+  #canvas-container{ position:absolute; inset:0; transition: filter 0.4s ease; }
+  #canvas-container.thermal{ filter: grayscale(1) contrast(1.3) sepia(1) hue-rotate(180deg) saturate(4.5) brightness(1.1); }
+  #canvas-container canvas{ width:100%; height:100%; display:block; }
+  #tile-layer{ position:absolute; inset:0; display:flex; flex-direction:column; pointer-events:none; }
+  #main-slot{ flex:1; position:relative; border-bottom:2px solid #000; }
+  #thumb-row{ height:130px; display:flex; }
+  .thumb-slot{ flex:1; position:relative; border-right:2px solid #000; }
+  .thumb-slot:last-child{ border-right:none; }
+  .tile{ position:absolute; inset:0; pointer-events:auto; cursor:pointer; }
+  .tile-chrome{ position:absolute; inset:0; pointer-events:none; box-shadow: inset 0 0 40px rgba(0,0,0,0.35); }
+  .tile-label{ position:absolute; top:8px; left:10px; font-size:11px; color:#d8f0e2; text-shadow:0 1px 2px rgba(0,0,0,0.8); font-weight:500; letter-spacing:0.3px; display:flex; align-items:center; gap:6px; }
+  .rec-dot{ width:7px; height:7px; border-radius:50%; background:var(--danger); animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .tile-time{ position:absolute; bottom:8px; right:10px; font-size:10px; color:#b8d8c4; text-shadow:0 1px 2px rgba(0,0,0,0.8); }
+  .tile-scan{ position:absolute; inset:0; background:repeating-linear-gradient(rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.06) 3px); pointer-events:none; }
+  .thumb-slot .tile-label{ font-size:9px; }
+  .thumb-slot .tile-time{ font-size:8px; }
+  .detect-box{ position:absolute; border:1.5px solid; border-radius:3px; pointer-events:none; }
+  .detect-label{ position:absolute; top:-18px; left:-1.5px; font-size:9px; padding:1px 5px; white-space:nowrap; border-radius:2px; font-weight:500; }
+
+  #topbar{ position:absolute; top:0; left:0; right:0; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; z-index:5; pointer-events:none; }
+  #topbar h2{ font-size:13px; margin:0; font-weight:500; color:var(--text); text-shadow:0 1px 3px rgba(0,0,0,0.8); }
+  #controls-bar{ position:absolute; top:12px; right:16px; display:flex; gap:8px; z-index:6; pointer-events:auto; }
+  #controls-bar button{ background:rgba(5,20,12,0.85); border:1px solid var(--border); color:var(--text); font-size:11px; padding:6px 10px; border-radius:6px; cursor:pointer; }
+  #controls-bar button.active{ border-color:var(--accent); color:var(--accent); }
+  #weather-tag{ position:absolute; top:12px; left:50%; transform:translateX(-50%); font-size:11px; color:var(--text-dim); background:rgba(5,20,12,0.85); padding:5px 12px; border-radius:6px; border:1px solid var(--border); z-index:6; }
+</style>
+</head>
+<body>
+
+<nav id="site-nav">
+  <a href="index.html" class="brand"><span class="dot"></span> AGRIXMBD 2.0</a>
+  <div class="links">
+    <a href="index.html">Home</a>
+    <a href="digital-twin.html" class="active">Digital Twin</a>
+    <a href="#" onclick="return false;" style="opacity:.5; cursor:not-allowed;">Dashboard</a>
+    <a href="#" onclick="return false;" style="opacity:.5; cursor:not-allowed;">AREX Marketplace</a>
+  </div>
+  <div class="badge">B.E. ENTC Capstone · NMIET</div>
+</nav>
+
+<div id="app-wrapper">
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1>AGRIXMBD 2.0 — AI Surveillance</h1>
+    <p>Talegaon Dabhade farm · no cameras, satellite + sensor fused</p>
+  </div>
+  <div id="ai-status"><span class="rec-dot" style="background:var(--accent)"></span> AI vision model active — analyzing 6 fields</div>
+  <div style="padding:12px 20px; border-bottom:1px solid var(--border);">
+    <button id="btn-daily-report" style="width:100%; background:var(--accent-dim); color:#eafff2; border:none; padding:10px; border-radius:8px; font-size:12px; cursor:pointer; font-weight:500;">Generate today's AI fusion report (video)</button>
+    <div id="report-status" style="font-size:10px; color:var(--text-dim); margin-top:6px;"></div>
+  </div>
+  <div id="plot-list"></div>
+  <div id="alert-panel">
+    <h2>Threat detection log</h2>
+    <div id="alert-list"></div>
+  </div>
+</div>
+
+<div id="main">
+  <div id="canvas-container"></div>
+  <div id="tile-layer">
+    <div id="main-slot"></div>
+    <div id="thumb-row">
+      <div class="thumb-slot" data-slot="1"></div>
+      <div class="thumb-slot" data-slot="2"></div>
+      <div class="thumb-slot" data-slot="3"></div>
+    </div>
+  </div>
+  <div id="topbar"><h2>Live farm monitoring — AI-rendered, zero physical cameras</h2></div>
+  <div id="weather-tag">☀ Clear</div>
+  <div id="controls-bar">
+    <button id="btn-thermal">Thermal view</button>
+    <button id="btn-fullscreen">Fullscreen</button>
+    <button id="btn-awake">Keep screen on</button>
+  </div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ================= FARM LAYOUT ================= */
+const FIELDS = [
+  { name: 'North wheat field',   crop: 'wheat',   poly: [[2,2],[20,1],[18,16],[1,17]] },
+  { name: 'North soybean field', crop: 'soybean', poly: [[22,1],[40,2],[39,16],[21,16]] },
+  { name: 'East wheat field',    crop: 'wheat',   poly: [[42,2],[58,3],[58,17],[41,16]] },
+  { name: 'South soybean field', crop: 'soybean', poly: [[1,20],[18,20],[17,37],[1,36]] },
+  { name: 'Center wheat field',  crop: 'wheat',   poly: [[21,19],[39,19],[39,37],[20,36]] },
+  { name: 'South soybean field', crop: 'soybean', poly: [[41,19],[58,20],[58,37],[41,36]] },
+];
+const CROP_BASE = { wheat: 0xd8a83a, soybean: 0x3f8a3f };
+const CROP_STRESSED = { wheat: 0x9c7a2e, soybean: 0x6b6b2e };
+const HEALTH_TINT = { healthy: 0x4ade8a, stress: 0xf2b544, risk: 0xe2574c };
+const FARM_CENTER = { x: 29, z: 19 };
+
+/* ================= SCENE SETUP ================= */
+const container = document.getElementById('canvas-container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a1710);
+scene.fog = new THREE.Fog(0x0a1710, 50, 130);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0x9fc2ab, 0.55));
+const sun = new THREE.DirectionalLight(0xfff3d6, 1.4);
+sun.position.set(40, 60, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -70;
+sun.shadow.camera.right = 70;
+sun.shadow.camera.top = 70;
+sun.shadow.camera.bottom = -70;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 150;
+sun.shadow.bias = -0.0015;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x8fd3ff, 0x2a4a30, 0.35));
+
+const groundGeo = new THREE.PlaneGeometry(140, 120);
+const groundMat = new THREE.MeshStandardMaterial({ color: 0x1c3a22, roughness: 1 });
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(FARM_CENTER.x, -0.06, FARM_CENTER.z);
+ground.receiveShadow = true;
+scene.add(ground);
+
+function pointInPoly(x, z, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i][0], zi = poly[i][1], xj = poly[j][0], zj = poly[j][1];
+    const intersect = ((zi > z) !== (zj > z)) && (x < (xj - xi) * (z - zi) / (zj - zi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function polyBounds(poly) {
+  const xs = poly.map(p => p[0]), zs = poly.map(p => p[1]);
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) };
+}
+function polyCenter(poly) {
+  const b = polyBounds(poly);
+  return { x: (b.minX + b.maxX) / 2, z: (b.minZ + b.maxZ) / 2 };
+}
+
+/* ================= BUILD FIELDS ================= */
+const fields = [];
+FIELDS.forEach((f, idx) => {
+  const shape = new THREE.Shape(f.poly.map(p => new THREE.Vector2(p[0], p[1])));
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.35, bevelEnabled: false });
+  geo.rotateX(-Math.PI / 2);
+  const soilMat = new THREE.MeshStandardMaterial({ color: 0x3b2a1a, roughness: 1 });
+  const soil = new THREE.Mesh(geo, soilMat);
+  soil.receiveShadow = true;
+  scene.add(soil);
+
+  const tintShape = new THREE.Shape(f.poly.map(p => new THREE.Vector2(p[0], p[1])));
+  const tintGeo = new THREE.ShapeGeometry(tintShape);
+  tintGeo.rotateX(-Math.PI / 2);
+  const tintMat = new THREE.MeshBasicMaterial({ color: HEALTH_TINT.healthy, transparent: true, opacity: 0.16, side: THREE.DoubleSide });
+  const tintMesh = new THREE.Mesh(tintGeo, tintMat);
+  tintMesh.position.y = 0.02;
+  scene.add(tintMesh);
+
+  const bounds = polyBounds(f.poly);
+  const cropMeshes = [];
+  const cropCount = f.crop === 'wheat' ? 70 : 45;
+  let placed = 0, attempts = 0;
+  while (placed < cropCount && attempts < cropCount * 8) {
+    attempts++;
+    const rx = bounds.minX + Math.random() * (bounds.maxX - bounds.minX);
+    const rz = bounds.minZ + Math.random() * (bounds.maxZ - bounds.minZ);
+    if (!pointInPoly(rx, rz, f.poly)) continue;
+    let mesh;
+    if (f.crop === 'wheat') {
+      mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1, 5), new THREE.MeshStandardMaterial({ color: CROP_BASE.wheat }));
+    } else {
+      mesh = new THREE.Mesh(new THREE.SphereGeometry(0.28, 6, 6), new THREE.MeshStandardMaterial({ color: CROP_BASE.soybean }));
+    }
+    mesh.position.set(rx, 0.4, rz);
+    mesh.userData.swayPhase = Math.random() * Math.PI * 2;
+    scene.add(mesh);
+    cropMeshes.push(mesh);
+    placed++;
+  }
+
+  const center = polyCenter(f.poly);
+  fields.push({
+    id: idx, name: f.name, crop: f.crop, center, soil, tintMesh, tintMat, cropMeshes,
+    data: { moisture: 55, temp: 27, humidity: 60, ndvi: 0.6, risk: 0.15, growth: 0.25, status: 'healthy' },
+    _alerted: false
+  });
+});
+
+/* ================= REAL SATELLITE IMAGERY (ground truth layer) =================
+   Replace FARM_LAT / FARM_LON below with your exact farm coordinates.
+   Get them by right-clicking your farm location in Google Maps and copying the
+   lat, lon shown. This uses Esri World Imagery — public, no API key needed for
+   demo/academic use. For a production deployment, use a licensed Sentinel Hub
+   or Planet Labs subscription instead. */
+const FARM_LAT = 18.7345;   // <-- put your real farm latitude here
+const FARM_LON = 73.6883;   // <-- put your real farm longitude here
+const SAT_ZOOM = 19;        // 19 ≈ 0.3m/pixel — good field-level detail
+
+function lonToTileX(lon, z) { return Math.floor((lon + 180) / 360 * Math.pow(2, z)); }
+function latToTileY(lat, z) {
+  const rad = lat * Math.PI / 180;
+  return Math.floor((1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z));
+}
+function tileMetersPerPixel(lat, z) {
+  return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, z);
+}
+
+const centerTX = lonToTileX(FARM_LON, SAT_ZOOM);
+const centerTY = latToTileY(FARM_LAT, SAT_ZOOM);
+const mpp = tileMetersPerPixel(FARM_LAT, SAT_ZOOM);
+const tileSizeMeters = 256 * mpp;
+const satTextureLoader = new THREE.TextureLoader();
+satTextureLoader.setCrossOrigin('anonymous');
+
+const satGroup = new THREE.Group();
+satGroup.position.set(FARM_CENTER.x, -0.045, FARM_CENTER.z);
+scene.add(satGroup);
+
+for (let dx = -1; dx <= 1; dx++) {
+  for (let dy = -1; dy <= 1; dy++) {
+    const tx = centerTX + dx, ty = centerTY + dy;
+    const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${SAT_ZOOM}/${ty}/${tx}`;
+    const geo = new THREE.PlaneGeometry(tileSizeMeters, tileSizeMeters);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({ color: 0x223322 }); // fallback color while loading / if offline
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.set(dx * tileSizeMeters, 0, dy * tileSizeMeters);
+    satGroup.add(mesh);
+    satTextureLoader.load(url, (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      mat.map = tex;
+      mat.color.set(0xffffff);
+      mat.needsUpdate = true;
+    }, undefined, () => {
+      pushAlert('Satellite tile failed to load — check internet connection or coordinates', true);
+    });
+  }
+}
+
+/* ================= MULTI-SATELLITE FUSION (the "3-4 satellites" layer) =================
+   Real satellites each have blind spots. Optical satellites (Sentinel-2, ISRO
+   ResourceSat) get blocked by cloud cover. Radar (Sentinel-1 SAR) sees straight
+   through clouds but can't read color/NDVI. Thermal (MODIS/VIIRS) is coarse
+   resolution but always available. Fusing them means: whichever sources are
+   available today get combined, weighted by how reliable each is for that
+   particular measurement. This is what makes the fusion more robust than any
+   single satellite alone. */
+const SATELLITES = {
+  cartosat3:   { label: 'Cartosat-3 (ISRO)', band: 'Panchromatic optical', resolution: '0.25m', revisit: '~4 days', opticalBlocked: true },
+  worldview3:  { label: 'WorldView-3 (Maxar)', band: '8-band multispectral + SWIR', resolution: '0.31m', revisit: '<1 day', opticalBlocked: true },
+  risat1a:     { label: 'RISAT-1A (ISRO)', band: 'C-band SAR', resolution: '3-5m', revisit: '~12 days', opticalBlocked: false },
+  landsat9:    { label: 'Landsat 9 (NASA/USGS)', band: 'Thermal infrared', resolution: '100m', revisit: '8 days', opticalBlocked: false },
+};
+
+function fuseSatelliteData(field) {
+  const cloudCover = Math.random() < 0.32; // simulate a passing cloud bank over the farm
+  const sources = {};
+  sources.cartosat3  = cloudCover ? null : { ndvi: field.data.ndvi + (Math.random() - 0.5) * 0.04 };
+  sources.worldview3 = cloudCover ? null : { diseaseIndex: field.data.risk + (Math.random() - 0.5) * 0.05 };
+  sources.risat1a    = { soilMoistureSAR: field.data.moisture + (Math.random() - 0.5) * 6 }; // sees through cloud
+  sources.landsat9   = { tempC: field.data.temp + (Math.random() - 0.5) * 1.5 }; // always available, coarser
+
+  const active = Object.keys(sources).filter(k => sources[k] !== null);
+  field.satSources = sources;
+  field.satActive = active;
+  return { cloudCover, active };
+}
+
+/* ================= FARM ELEMENTS ================= */
+const house = new THREE.Group();
+const base = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 5), new THREE.MeshStandardMaterial({ color: 0xcbb896 }));
+base.position.y = 1.5;
+base.castShadow = true; base.receiveShadow = true;
+house.add(base);
+const roof = new THREE.Mesh(new THREE.ConeGeometry(4.5, 2.2, 4), new THREE.MeshStandardMaterial({ color: 0x8a3b2b }));
+roof.rotation.y = Math.PI / 4;
+roof.position.y = 4.1;
+roof.castShadow = true;
+house.add(roof);
+house.position.set(51, 0, 46);
+scene.add(house);
+
+const pond = new THREE.Mesh(new THREE.CircleGeometry(4.2, 32), new THREE.MeshStandardMaterial({ color: 0x2f7fb0, transparent: true, opacity: 0.85 }));
+pond.rotation.x = -Math.PI / 2;
+pond.position.set(7, 0.05, 45);
+scene.add(pond);
+
+const roadMat = new THREE.MeshStandardMaterial({ color: 0x6b5a3f });
+const roadH = new THREE.Mesh(new THREE.PlaneGeometry(64, 2.4), roadMat);
+roadH.rotation.x = -Math.PI / 2;
+roadH.position.set(FARM_CENTER.x, 0.01, 17.8);
+scene.add(roadH);
+const roadV = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 44), roadMat);
+roadV.rotation.x = -Math.PI / 2;
+roadV.position.set(19.5, 0.01, 20);
+scene.add(roadV);
+
+function makeTree(x, z) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.24, 1.6, 6), new THREE.MeshStandardMaterial({ color: 0x5a4022 }));
+  trunk.position.y = 0.8;
+  trunk.castShadow = true;
+  const foliage = new THREE.Mesh(new THREE.SphereGeometry(1.1, 7, 7), new THREE.MeshStandardMaterial({ color: 0x2f6b34 }));
+  foliage.position.y = 2.1;
+  foliage.castShadow = true;
+  g.add(trunk, foliage);
+  g.position.set(x, 0, z);
+  scene.add(g);
+}
+[[-1,-1],[15,-2],[30,-2],[45,-2],[60,10],[60,25],[60,38],[45,42],[-2,15],[-2,30],[-2,40]].forEach(([x,z]) => makeTree(x, z));
+
+const tractor = new THREE.Group();
+const tBody = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1, 2.6), new THREE.MeshStandardMaterial({ color: 0xd2451f }));
+tBody.position.y = 0.7;
+tBody.castShadow = true;
+const tCab = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+tCab.position.set(0, 1.4, -0.5);
+tCab.castShadow = true;
+tractor.add(tBody, tCab);
+tractor.position.set(0, 0, 17.8);
+scene.add(tractor);
+let tractorT = 0;
+
+/* ================= WEATHER ================= */
+let isRaining = false;
+const rainCount = 900;
+const rainGeo = new THREE.BufferGeometry();
+const rainPositions = new Float32Array(rainCount * 3);
+for (let i = 0; i < rainCount; i++) {
+  rainPositions[i*3] = FARM_CENTER.x + (Math.random() - 0.5) * 90;
+  rainPositions[i*3+1] = Math.random() * 40;
+  rainPositions[i*3+2] = FARM_CENTER.z + (Math.random() - 0.5) * 80;
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0x8fb8e0, size: 0.22, transparent: true, opacity: 0 });
+const rain = new THREE.Points(rainGeo, rainMat);
+scene.add(rain);
+function updateWeather(dt) {
+  const avgHumidity = fields.reduce((s, f) => s + f.data.humidity, 0) / fields.length;
+  isRaining = avgHumidity > 78;
+  rainMat.opacity += ((isRaining ? 0.55 : 0) - rainMat.opacity) * 0.05;
+  if (isRaining) {
+    const pos = rain.geometry.attributes.position;
+    for (let i = 0; i < rainCount; i++) {
+      let y = pos.getY(i) - dt * 22;
+      if (y < 0) y = 40;
+      pos.setY(i, y);
+    }
+    pos.needsUpdate = true;
+  }
+  document.getElementById('weather-tag').textContent = isRaining ? '🌧 Rain (avg humidity ' + Math.round(avgHumidity) + '%)' : '☀ Clear (avg humidity ' + Math.round(avgHumidity) + '%)';
+}
+
+/* ================= DAY / NIGHT ================= */
+const SKY_DAY = new THREE.Color(0x0a1710);
+const SKY_DUSK = new THREE.Color(0x2a1a1a);
+const SKY_NIGHT = new THREE.Color(0x05070d);
+function updateDayNight() {
+  const now = new Date();
+  const hourFrac = now.getHours() + now.getMinutes() / 60;
+  const daylight = Math.max(0, Math.cos((hourFrac - 12) / 12 * Math.PI));
+  const isDusk = (hourFrac > 5.5 && hourFrac < 7.5) || (hourFrac > 17 && hourFrac < 19);
+  const targetSky = isDusk ? SKY_DUSK : SKY_DAY.clone().lerp(SKY_NIGHT, 1 - daylight);
+  scene.background.lerp(targetSky, 0.02);
+  scene.fog.color.lerp(targetSky, 0.02);
+  sun.intensity = 0.25 + daylight * 0.95;
+  sun.color.setHex(isDusk ? 0xffa060 : 0xfff3d6);
+  scene.children.forEach(c => { if (c.isAmbientLight) c.intensity = 0.25 + daylight * 0.55; });
+}
+
+/* ================= IRRIGATION ================= */
+function spawnIrrigation(field) {
+  const count = 16;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  const b = polyBounds(FIELDS[field.id].poly);
+  for (let i = 0; i < count; i++) {
+    positions[i*3] = b.minX + Math.random() * (b.maxX - b.minX);
+    positions[i*3+1] = 2 + Math.random() * 1.5;
+    positions[i*3+2] = b.minZ + Math.random() * (b.maxZ - b.minZ);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x4a9ee0, size: 0.14, transparent: true, opacity: 0.9 });
+  const points = new THREE.Points(geo, mat);
+  points.userData.life = 0;
+  scene.add(points);
+  field.irrigation = points;
+}
+
+/* ================= AI SENSOR + THREAT SIMULATION ================= */
+function simulateTick() {
+  const now = Date.now() / 1000;
+  fields.forEach((field, i) => {
+    const d = field.data;
+    const phase = now / 40 + i;
+    d.temp = 24 + 6 * Math.sin(phase) + (Math.random() - 0.5) * 2;
+    d.humidity = 55 + 20 * Math.sin(phase * 0.7 + 1) + (Math.random() - 0.5) * 6;
+    d.moisture = Math.max(5, Math.min(95, d.moisture + (Math.random() - 0.55) * 8));
+    d.ndvi = Math.max(0.1, Math.min(0.95, 0.6 + 0.2 * Math.sin(phase * 0.3) + (Math.random() - 0.5) * 0.05));
+    d.growth = Math.min(1, d.growth + 0.008);
+
+    const fusion = fuseSatelliteData(field);
+
+    let risk = 0;
+    if (d.humidity > 75 && d.temp > 26 && d.temp < 34) risk += 0.5;
+    if (d.moisture > 80) risk += 0.2;
+    if (d.ndvi < 0.4) risk += 0.3;
+    if (field.satSources.worldview3) risk = (risk + field.satSources.worldview3.diseaseIndex) / 2; // blend in satellite disease index when available
+    d.risk = Math.max(0, Math.min(1, risk + (Math.random() - 0.5) * 0.05));
+
+    if (d.risk > 0.55) d.status = 'risk';
+    else if (d.moisture < 25 || d.ndvi < 0.45) d.status = 'stress';
+    else d.status = 'healthy';
+
+    if (d.moisture < 30 && !field.irrigation) spawnIrrigation(field);
+
+    if (d.status === 'risk' && !field._alerted) {
+      pushAlert(`AI detected disease risk in ${field.name} (${Math.round(d.risk*100)}% confidence)`, true);
+      field._alerted = true;
+    } else if (d.status === 'stress' && !field._alerted) {
+      pushAlert(`AI flagged crop stress in ${field.name}`, false);
+      field._alerted = true;
+    } else if (d.status === 'healthy') {
+      field._alerted = false;
+    }
+  });
+  updateSidebar();
+}
+
+/* ================= VISUAL UPDATE ================= */
+function updateVisuals(dt, elapsed) {
+  fields.forEach(field => {
+    const d = field.data;
+    field.tintMat.color.lerp(new THREE.Color(HEALTH_TINT[d.status]), 0.03);
+    const cropBase = new THREE.Color(CROP_BASE[field.crop]);
+    const cropStressed = new THREE.Color(CROP_STRESSED[field.crop]);
+    const stressAmt = d.status === 'healthy' ? 0 : (d.status === 'stress' ? 0.5 : 0.85);
+    field.cropMeshes.forEach(mesh => {
+      const targetScale = 0.3 + d.growth * (field.crop === 'wheat' ? 1.3 : 0.9);
+      mesh.scale.y += (targetScale - mesh.scale.y) * 0.015;
+      mesh.position.y = field.crop === 'wheat' ? mesh.scale.y * 0.5 : 0.28;
+      mesh.rotation.z = Math.sin(elapsed * 1.2 + mesh.userData.swayPhase) * 0.06;
+      mesh.material.color.lerp(cropBase.clone().lerp(cropStressed, stressAmt), 0.02);
+    });
+    if (field.irrigation) {
+      const pos = field.irrigation.geometry.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        let y = pos.getY(i) - dt * 2.5;
+        if (y < 0.1) y = 2 + Math.random() * 1.5;
+        pos.setY(i, y);
+      }
+      pos.needsUpdate = true;
+      field.irrigation.userData.life += dt;
+      if (field.irrigation.userData.life > 4 || d.moisture > 45) {
+        scene.remove(field.irrigation);
+        field.irrigation.geometry.dispose();
+        field.irrigation.material.dispose();
+        field.irrigation = null;
+      }
+    }
+  });
+
+  tractorT += dt * 0.15;
+  tractor.position.x = FARM_CENTER.x + Math.sin(tractorT) * 27;
+  tractor.rotation.y = Math.cos(tractorT) >= 0 ? 0 : Math.PI;
+
+  updateWeather(dt);
+  updateDayNight();
+
+  overviewAngle += dt * 0.05;
+  cams.overview.position.set(
+    FARM_CENTER.x + Math.cos(overviewAngle) * 62,
+    42,
+    FARM_CENTER.z + Math.sin(overviewAngle) * 50
+  );
+  cams.overview.lookAt(FARM_CENTER.x, 0, FARM_CENTER.z);
+}
+
+/* ================= FIXED "CCTV" CAMERAS ================= */
+const cams = {
+  overview: new THREE.PerspectiveCamera(50, 1, 0.1, 400),
+  north: new THREE.PerspectiveCamera(55, 1, 0.1, 400),
+  south: new THREE.PerspectiveCamera(55, 1, 0.1, 400),
+  house: new THREE.PerspectiveCamera(55, 1, 0.1, 400),
+};
+cams.north.position.set(29, 9, -6); cams.north.lookAt(29, 1, 10);
+cams.south.position.set(29, 9, 46); cams.south.lookAt(29, 1, 27);
+cams.house.position.set(28, 7, 58); cams.house.lookAt(48, 2, 46);
+let overviewAngle = 0;
+const cams_report = new THREE.PerspectiveCamera(50, 1, 0.1, 400);
+let reportMode = false, reportT = 0;
+const REPORT_DURATION = 10;
+let mediaRecorder = null, recordedChunks = [];
+
+const CAM_META = {
+  overview: { label: 'CAM 01 · FARM OVERVIEW (AERIAL)', tile: 'main' },
+  north:    { label: 'CAM 02 · NORTH FIELDS', tile: 'thumb1' },
+  south:    { label: 'CAM 03 · SOUTH FIELDS', tile: 'thumb2' },
+  house:    { label: 'CAM 04 · FARMHOUSE / POND', tile: 'thumb3' },
+};
+let tileOrder = ['overview', 'north', 'south', 'house']; // [main, thumb1, thumb2, thumb3]
+const slotEls = {
+  main: document.getElementById('main-slot'),
+  thumb1: document.querySelector('.thumb-slot[data-slot="1"]'),
+  thumb2: document.querySelector('.thumb-slot[data-slot="2"]'),
+  thumb3: document.querySelector('.thumb-slot[data-slot="3"]'),
+};
+const slotOrder = ['main', 'thumb1', 'thumb2', 'thumb3'];
+
+/* build DOM chrome once per slot, content (label) refreshed each frame */
+Object.keys(slotEls).forEach(slotKey => {
+  const el = slotEls[slotKey];
+  el.innerHTML = `
+    <div class="tile" data-slot="${slotKey}">
+      <div class="tile-chrome"></div>
+      <div class="tile-scan"></div>
+      <div class="tile-label"><span class="rec-dot"></span><span class="tile-label-text"></span></div>
+      <div class="tile-time"></div>
+      <div class="detect-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
+    </div>`;
+  el.querySelector('.tile').addEventListener('click', () => {
+    const clickedCamKey = tileOrder[slotOrder.indexOf(slotKey)];
+    tileOrder = [clickedCamKey, ...tileOrder.filter(k => k !== clickedCamKey)];
+  });
+});
+
+function layoutTimeString() {
+  return new Date().toLocaleTimeString();
+}
+
+function renderTiles() {
+  const canvasRect = renderer.domElement.getBoundingClientRect();
+  slotOrder.forEach((slotKey, i) => {
+    const camKey = tileOrder[i];
+    const cam = cams[camKey];
+    const el = slotEls[slotKey];
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+
+    cam.aspect = rect.width / rect.height;
+    cam.updateProjectionMatrix();
+
+    const x = Math.round(rect.left - canvasRect.left);
+    const yTop = Math.round(rect.top - canvasRect.top);
+    const w = Math.round(rect.width), h = Math.round(rect.height);
+    const glY = Math.round(canvasRect.height - yTop - h);
+
+    renderer.setScissorTest(true);
+    renderer.setViewport(x, glY, w, h);
+    renderer.setScissor(x, glY, w, h);
+    renderer.render(scene, cam);
+
+    // update chrome text
+    el.querySelector('.tile-label-text').textContent = CAM_META[camKey].label;
+    el.querySelector('.tile-time').textContent = layoutTimeString();
+
+    // AI detection overlay boxes
+    const detectLayer = el.querySelector('.detect-layer');
+    detectLayer.innerHTML = '';
+    fields.forEach(field => {
+      if (field.data.status === 'healthy') return;
+      const worldPos = new THREE.Vector3(field.center.x, 1, field.center.z);
+      const ndc = worldPos.clone().project(cam);
+      if (ndc.z > 1 || ndc.z < -1 || Math.abs(ndc.x) > 1.1 || Math.abs(ndc.y) > 1.1) return;
+      const px = (ndc.x + 1) / 2 * w;
+      const py = (1 - ndc.y) / 2 * h;
+      const isRisk = field.data.status === 'risk';
+      const boxSize = slotKey === 'main' ? 90 : 46;
+      const box = document.createElement('div');
+      box.className = 'detect-box';
+      box.style.left = (px - boxSize/2) + 'px';
+      box.style.top = (py - boxSize/2) + 'px';
+      box.style.width = boxSize + 'px';
+      box.style.height = boxSize + 'px';
+      box.style.borderColor = isRisk ? '#e2574c' : '#f2b544';
+      const label = document.createElement('div');
+      label.className = 'detect-label';
+      label.style.background = isRisk ? '#e2574c' : '#f2b544';
+      label.style.color = '#1a0a05';
+      label.textContent = (isRisk ? 'DISEASE RISK ' : 'STRESS ') + Math.round((isRisk ? field.data.risk : (1 - field.data.ndvi)) * 100) + '%';
+      if (slotKey !== 'main') label.style.fontSize = '7px';
+      box.appendChild(label);
+      detectLayer.appendChild(box);
+    });
+  });
+}
+
+/* ================= SIDEBAR ================= */
+const plotListEl = document.getElementById('plot-list');
+function buildSidebarCards() {
+  plotListEl.innerHTML = '';
+  fields.forEach(field => {
+    const card = document.createElement('div');
+    card.className = 'plot-card';
+    card.id = `card-${field.id}`;
+    card.innerHTML = `
+      <div class="plot-card-top">
+        <strong><span class="status-dot" id="dot-${field.id}" style="background:#4ade8a"></span>${field.name}</strong>
+        <span class="crop-tag">${field.crop}</span>
+      </div>
+      <div class="stat-row"><span>Moisture</span><span id="s-moist-${field.id}">-</span></div>
+      <div class="stat-row"><span>NDVI</span><span id="s-ndvi-${field.id}">-</span></div>
+      <div class="stat-row"><span>Disease risk</span><span id="s-risk-${field.id}">-</span></div>
+      <div id="s-sat-${field.id}" style="font-size:9px; color:var(--text-dim); margin-top:4px; line-height:1.5;"></div>
+    `;
+    plotListEl.appendChild(card);
+  });
+}
+function updateSidebar() {
+  fields.forEach(field => {
+    document.getElementById(`s-moist-${field.id}`).textContent = Math.round(field.data.moisture) + '%';
+    document.getElementById(`s-ndvi-${field.id}`).textContent = field.data.ndvi.toFixed(2);
+    document.getElementById(`s-risk-${field.id}`).textContent = Math.round(field.data.risk * 100) + '%';
+    document.getElementById(`dot-${field.id}`).style.background = '#' + new THREE.Color(HEALTH_TINT[field.data.status]).getHexString();
+    const satEl = document.getElementById(`s-sat-${field.id}`);
+    if (satEl && field.satActive) {
+      const confidence = Math.round((field.satActive.length / Object.keys(SATELLITES).length) * 100);
+      satEl.innerHTML = `<div style="margin-bottom:3px;">Fusion confidence: <strong style="color:var(--accent)">${confidence}%</strong></div>` + Object.keys(SATELLITES).map(k => {
+        const on = field.satActive.includes(k);
+        const s = SATELLITES[k];
+        return `<span style="color:${on ? 'var(--accent)' : 'var(--text-dim)'}" title="${s.band}, ${s.resolution}, revisit ${s.revisit}">${on ? '●' : '○'} ${s.label.split(' (')[0]}</span>`;
+      }).join(' &nbsp; ');
+    }
+  });
+}
+const alertListEl = document.getElementById('alert-list');
+function pushAlert(msg, danger) {
+  const item = document.createElement('div');
+  item.className = 'alert-item' + (danger ? ' danger' : '');
+  item.innerHTML = `${msg}<div class="alert-time">${new Date().toLocaleTimeString()}</div>`;
+  alertListEl.prepend(item);
+  while (alertListEl.children.length > 14) alertListEl.removeChild(alertListEl.lastChild);
+}
+
+/* ================= THERMAL / NIGHT-VISION TOGGLE ================= */
+const btnThermal = document.getElementById('btn-thermal');
+let thermalOn = false;
+btnThermal.onclick = () => {
+  thermalOn = !thermalOn;
+  container.classList.toggle('thermal', thermalOn);
+  btnThermal.classList.toggle('active', thermalOn);
+  btnThermal.textContent = thermalOn ? 'Thermal view: ON' : 'Thermal view';
+  pushAlert(thermalOn ? 'Switched to thermal/IR analysis mode' : 'Switched to standard optical view', false);
+};
+
+/* ================= FULLSCREEN + WAKE LOCK ================= */
+const btnFullscreen = document.getElementById('btn-fullscreen');
+btnFullscreen.onclick = () => {
+  if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(()=>{}); btnFullscreen.textContent = 'Exit fullscreen'; }
+  else { document.exitFullscreen(); btnFullscreen.textContent = 'Fullscreen'; }
+};
+let wakeLock = null;
+const btnAwake = document.getElementById('btn-awake');
+btnAwake.onclick = async () => {
+  try {
+    if (!wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      btnAwake.textContent = 'Screen staying on'; btnAwake.classList.add('active');
+      wakeLock.addEventListener('release', () => { btnAwake.textContent = 'Keep screen on'; btnAwake.classList.remove('active'); wakeLock = null; });
+    } else { wakeLock.release(); wakeLock = null; }
+  } catch (e) { pushAlert('Wake lock not supported on this browser/device', true); }
+};
+document.addEventListener('visibilitychange', async () => {
+  if (wakeLock === null && document.visibilityState === 'visible' && btnAwake.classList.contains('active')) {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
+  }
+});
+
+/* ================= DAILY AI FUSION REPORT (real recorded video) ================= */
+const btnReport = document.getElementById('btn-daily-report');
+const reportStatusEl = document.getElementById('report-status');
+btnReport.onclick = () => {
+  if (reportMode) return;
+  if (!renderer.domElement.captureStream) {
+    reportStatusEl.textContent = 'Video recording not supported in this browser — try Chrome or Edge.';
+    return;
+  }
+  // fusion summary across all fields, based on this cycle's satellite availability
+  let summaryLines = [];
+  const fieldPayload = [];
+  fields.forEach(f => {
+    const missing = Object.keys(SATELLITES).filter(k => !f.satActive.includes(k));
+    const cloudNote = missing.length ? ` (cloud-blocked: ${missing.map(k => SATELLITES[k].label.split(' (')[0]).join(', ')})` : '';
+    summaryLines.push(`${f.name}: ${f.data.status.toUpperCase()}, risk ${Math.round(f.data.risk*100)}%${cloudNote}`);
+    fieldPayload.push({
+      name: f.name, crop: f.crop, status: f.data.status, risk: f.data.risk,
+      moisture: f.data.moisture, ndvi: f.data.ndvi, temp: f.data.temp, humidity: f.data.humidity,
+      satellitesActive: f.satActive.map(k => SATELLITES[k].label.split(' (')[0]),
+      satellitesBlocked: missing.map(k => SATELLITES[k].label.split(' (')[0]),
+    });
+  });
+
+  pushAlert('Fusing Cartosat-3, WorldView-3, RISAT-1A, Landsat 9 — generating report video...', false);
+  reportStatusEl.textContent = 'Recording ' + REPORT_DURATION + 's flythrough + requesting AI analysis...';
+  btnReport.disabled = true;
+
+  // ask the local backend for a real AI-written narrative in parallel with recording
+  let aiSummaryPromise = fetch('http://localhost:3001/api/daily-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields: fieldPayload }),
+  }).then(r => r.ok ? r.json() : Promise.reject(r)).then(d => d.summary).catch(() => null);
+
+  recordedChunks = [];
+  const stream = renderer.domElement.captureStream(30);
+  let options = { mimeType: 'video/webm;codecs=vp9' };
+  try { mediaRecorder = new MediaRecorder(stream, options); }
+  catch (e) { mediaRecorder = new MediaRecorder(stream); }
+
+  mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
+  mediaRecorder.onstop = async () => {
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `agrixmbd-daily-fusion-report-${new Date().toISOString().slice(0,10)}.webm`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    const aiSummary = await aiSummaryPromise;
+    if (aiSummary) {
+      reportStatusEl.innerHTML = `<div style="color:var(--accent); font-weight:500; margin-bottom:4px;">AI analyst report:</div>${aiSummary.replace(/\n/g, '<br>')}`;
+      pushAlert('Daily AI fusion report generated (live AI analysis + video)', false);
+    } else {
+      reportStatusEl.innerHTML = `<div style="color:var(--warn); font-weight:500; margin-bottom:4px;">Backend not reachable — showing rule-based summary. Start the backend (see backend/server.js) for real AI-written analysis.</div>` + summaryLines.map(l => `• ${l}`).join('<br>');
+      pushAlert('Daily fusion report video downloaded (backend offline, used rule-based summary)', false);
+    }
+    btnReport.disabled = false;
+  };
+
+  mediaRecorder.start();
+  reportMode = true;
+  reportT = 0;
+};
+
+/* ================= RESIZE ================= */
+function resizeRenderer() {
+  const rect = container.getBoundingClientRect();
+  renderer.setSize(rect.width, rect.height);
+}
+window.addEventListener('resize', resizeRenderer);
+
+/* ================= RENDER LOOP ================= */
+let lastTime = performance.now();
+const startTime = performance.now();
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  const elapsed = (now - startTime) / 1000;
+  lastTime = now;
+  updateVisuals(dt, elapsed);
+
+  if (reportMode) {
+    reportT += dt;
+    const p = Math.min(1, reportT / REPORT_DURATION);
+    const angle = p * Math.PI * 2.2;
+    const radius = 55 - p * 15;
+    const height = 50 - p * 25;
+    cams_report.position.set(FARM_CENTER.x + Math.cos(angle) * radius, height, FARM_CENTER.z + Math.sin(angle) * radius);
+    cams_report.lookAt(FARM_CENTER.x, 0, FARM_CENTER.z);
+    const w = renderer.domElement.width, h = renderer.domElement.height;
+    cams_report.aspect = w / h;
+    cams_report.updateProjectionMatrix();
+    renderer.setScissorTest(false);
+    renderer.setViewport(0, 0, w, h);
+    renderer.render(scene, cams_report);
+    if (reportT >= REPORT_DURATION) {
+      reportMode = false;
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    }
+  } else {
+    renderer.setScissorTest(false);
+    renderTiles();
+  }
+}
+
+/* ================= BOOT ================= */
+resizeRenderer();
+buildSidebarCards();
+simulateTick();
+pushAlert('AI surveillance connected — 4 feeds live, zero physical cameras', false);
+setInterval(simulateTick, 3000);
+animate();
+</script>
+</body>
+</html>

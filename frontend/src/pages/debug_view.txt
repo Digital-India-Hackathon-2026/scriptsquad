@@ -1,0 +1,62 @@
+=== Main Map Load Segment ===
+twinMapRef.current.addSource('twin-farm-boundary', {
+        type: 'geojson',
+        data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [activeFarm.coordinates] }, properties: {} }
+      });
+      
+      // Clear outline around the plot for visual localization
+      twinMapRef.current.addLayer({ id: 'boundary-outline', type: 'line', source: 'twin-farm-boundary', paint: { 'line-color': '#00ffcc', 'line-width': 4.0 } });
+
+      twinMapRef.current.addSource('twin-farm-boundary-trees-source', {
+        type: 'geojson',
+        data: generateBoundaryTrees(activeFarm.coordinates)
+      });
+      twinMapRef.current.addLayer({
+        id: 'twin-3d-boundary-trees', type: 'fill-extrusion', source: 'twin-farm-boundary-trees-source',
+        paint: { 'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-height': ['get', 'height'], 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.9 }
+      });
+
+      twinMapRef.current.addLayer({
+        id: 'twin-3d-soil', type: 'fill-extrusion', source: 'twin-farm-boundary',
+        paint: { 'fill-extrusion-color': '#0284c7', 'fill-extrusion-height': twinSoilMoisture * 0.4, 'fill-extrusion-base': 0, 'fill-extrusion-opacity': 0.55 }
+      });
+
+      twinMapRef.current.addSource('twin-voxel-crops-source', { type: 'geojson', data: generateVoxelGrid(activeFarm.coordinates, twinSoilMoisture, aiOpacity, forestMode, growthFactor) });
+      twinMapRef.current.addLayer({
+        id: 'twin-3d-crops', type: 'fill-extrusion', source: 'twin
+==================================================
+VR Map Load Segment not found!
+=== How-To-Read Guide Segment ===
+al drone fleet Booking.</span>
+                      )}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bilingual Simple Farmer 3D Layer Explanation Card */}
+          <div className="glass-panel animate-fade-up" style={{ padding: '1.5rem', background: '#f8fafc', border: '1.5px solid var(--primary-mint)' }}>
+            <h4 style={{ fontSize: '0.9rem', color: 'var(--primary-deep)', fontWeight: 800, margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <HelpCircle size={15} style={{ color: 'var(--primary-emerald)' }} />
+              How to Read Your 3D Farm Model / 3D मॉडल कैसे समझें?
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '0.75rem', lineHeight: '1.4' }}>
+              
+              {/* Blue Soil Layer Explanation */}
+              <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+                <div style={{ width: '18px', height: '18px', background: '#0284c7', borderRadius: '4px', flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  <strong style={{ color: 'var(--primary-deep)', display: 'block' }}>💧 Blue Layer (Bottom) — Soil Water / मिट्टी में पानी (नमी)</strong>
+                  <span style={{ color: 'var(--text-dark)' }}>Shows how wet the soil is. Taller/thicker blue means the roots have enough water. Thin/empty means the soil is dry and needs watering.</span>
+                  <span style={{ display: 'block', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.68rem', marginTop: '1px' }}>यह दिखाता है कि मिट्टी में कितना पानी है। मोटा नीला ब्लॉक मतलब पर्याप्त पानी है।</span>
+                </div>
+              </div>
+
+              {/* Green Crop Layer Explanation */}
+              <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid var(--border-glass)', paddingBottom: '8px' }}>
+                <div style={{ width: '18px', height: '18px', background: '#10b981', borderRadius: '4px', flexShrink: 0, marginTop: '2px' }} />
+                <div>
+==================================================

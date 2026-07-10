@@ -1,0 +1,25 @@
+Lines 1235 to 1275:
+1235: '              </div>\n'
+1236: '\n'
+1237: '              {/* Layer 4: Groundwater Aquifer */}\n'
+1238: "              <div style={{ borderLeft: '3px solid #1e3a8a', paddingLeft: '8px' }}>\n"
+1239: "                <strong style={{ color: '#1e3a8a', display: 'block' }}>\n"
+1240: "                  {lang === 'hi' ? '४. भूजल जलभृत (५०-१५० सेमी) — गहरा नीला' : \n"
+1241: "                   lang === 'mr' ? '४. भूजल जलभृत (५०-१५० सेमी) — गडद निळा' : \n"
+1242: "                   lang === 'te' ? '4. భూగర్భ జలాశయం (50-150 సెం.మీ) — ముదురు నీలం' :\n"
+1243: "                   '4. Groundwater Aquifer Layer (50 - 150 cm) — Deep Navy Blue'}\n"
+1244: '                </strong>\n'
+1245: '                <span>\n'
+1246: "                  {lang === 'hi' ? 'यह गहराई में मौजूद संतृप्त पानी का स्तर है। यह कुओं और बोरवेल का मुख्य जल स्रोत है।' : \n"
+1247: "                   lang === 'mr' ? 'हा खोलवर असलेला पाण्याचा साठा आहे. हा विहिरी आणि कूपनलिकेचा मुख्य स्त्रोत आहे.' : \n"
+1248: "                   lang === 'te' ? 'ఇది లోతులో ఉండే భూగర్భ జల మట్టం. బోరు బావులకు ఇది ప్రధాన నీటి వనరు.' :\n"
+1249: "                   'Represents the fully saturated water table base level. Essential for long-term water balance and deep well capacity.'}\n"
+1250: '                </span>\n'
+1251: '              </div>\n'
+1252: '\n'
+1253: '            </div>\n'
+1254: '          </div>\n'
+1255: '  );\n'
+1256: '};\n'
+1257: '\n'
+1258: 'export default TwinPage;'
