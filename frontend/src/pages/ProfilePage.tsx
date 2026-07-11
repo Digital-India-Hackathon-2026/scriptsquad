@@ -20,6 +20,9 @@ interface ProfilePageProps {
   carbonCredits: any[];
   bookings: any[];
   lang: LangType;
+  currentUser: any;
+  marketProducts: any[];
+  bazaarProducts: any[];
 }
 
 const ProfilePage: React.FC<ProfilePageProps> = ({
@@ -40,6 +43,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
   carbonCredits,
   bookings,
   lang,
+  currentUser,
+  marketProducts,
+  bazaarProducts,
 }) => {
   const t = translations[lang];
 
@@ -320,6 +326,112 @@ const ProfilePage: React.FC<ProfilePageProps> = ({
             </button>
           </form>
         </div>
+      </div>
+
+      {/* Sales Listings Section */}
+      <div className="glass-panel" style={{ padding: '1.5rem', background: '#ffffff', borderRadius: '16px', marginTop: '0.5rem', boxShadow: '0 4px 15px rgba(15, 23, 42, 0.05)' }}>
+        <h3 style={{ fontSize: '1.05rem', color: 'var(--primary-deep)', fontWeight: 800, borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          📦 Your Live Selling Listings
+        </h3>
+
+        {/* Filter local products */}
+        {(() => {
+          const myFertilizers = marketProducts?.filter(p => p.user_id === currentUser?.id || p.seller === currentUser?.name || p.seller_name === currentUser?.name) || [];
+          const myBazaarProduce = bazaarProducts?.filter(p => p.user_id === currentUser?.id) || [];
+          const totalListings = myFertilizers.length + myBazaarProduce.length;
+
+          if (totalListings === 0) {
+            return (
+              <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', padding: '2rem 0' }}>
+                You have not listed any crop supplements or fresh produce for sale yet. List items using "+ Sell Supplement" or "+ List B2B Produce" in the marketplace.
+              </p>
+            );
+          }
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {/* Fertilizers List */}
+              {myFertilizers.length > 0 && (
+                <div>
+                  <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-body)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Crop Supplements & Fertilizers ({myFertilizers.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {myFertilizers.map((p, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img 
+                            src={p.image_url || 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=100'} 
+                            alt={p.name} 
+                            style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
+                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=100'; }}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.8rem', display: 'block', color: 'var(--text-title)' }}>{p.name}</strong>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Price: ₹{p.price} | Stock: {p.stock} units | Category: {p.category}</span>
+                          </div>
+                        </div>
+                        <span 
+                          style={{ 
+                            fontSize: '0.68rem', 
+                            padding: '3px 10px', 
+                            borderRadius: '12px', 
+                            fontWeight: 'bold',
+                            textTransform: 'capitalize',
+                            background: p.status === 'approved' ? '#dcfce7' : p.status === 'rejected' ? '#fee2e2' : '#fef3c7',
+                            color: p.status === 'approved' ? '#15803d' : p.status === 'rejected' ? '#b91c1c' : '#b45309'
+                          }}
+                        >
+                          {p.status || 'pending'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* B2B Bazaar Produce List */}
+              {myBazaarProduce.length > 0 && (
+                <div style={{ marginTop: myFertilizers.length > 0 ? '0.5rem' : '0' }}>
+                  <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-body)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    B2B Agri-Bazaar Produce ({myBazaarProduce.length})
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {myBazaarProduce.map((p, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', border: '1px solid #e2e8f0', padding: '10px 14px', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <img 
+                            src={p.image_url || 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=100'} 
+                            alt={p.name} 
+                            style={{ width: '40px', height: '40px', borderRadius: '6px', objectFit: 'cover' }}
+                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=100'; }}
+                          />
+                          <div>
+                            <strong style={{ fontSize: '0.8rem', display: 'block', color: 'var(--text-title)' }}>{p.name}</strong>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Price: ₹{p.price_per_kg}/kg | Stock: {p.stock_kg} kg | Category: {p.category}</span>
+                          </div>
+                        </div>
+                        <span 
+                          style={{ 
+                            fontSize: '0.68rem', 
+                            padding: '3px 10px', 
+                            borderRadius: '12px', 
+                            fontWeight: 'bold',
+                            textTransform: 'capitalize',
+                            background: p.status === 'approved' ? '#dcfce7' : p.status === 'rejected' ? '#fee2e2' : '#fef3c7',
+                            color: p.status === 'approved' ? '#15803d' : p.status === 'rejected' ? '#b91c1c' : '#b45309'
+                          }}
+                        >
+                          {p.status || 'approved'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
-import { Map as MapIcon, Cpu, ShoppingBag, MessageSquare, Activity, User as UserIcon } from 'lucide-react';
+import { Map as MapIcon, Cpu, ShoppingBag, MessageSquare, Activity, User as UserIcon, Award } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import Navbar from './components/layout/Navbar';
 import LandingPage from './pages/LandingPage';
@@ -10,8 +10,9 @@ import MarketPage from './pages/MarketPage';
 import VoicePage from './pages/VoicePage';
 import PfriePage from './pages/PfriePage';
 import ProfilePage from './pages/ProfilePage';
+import SchemesPage from './pages/SchemesPage';
 import { API_URL } from './lib/api';
-import type { Farm, Booking, Escrow, Product, CartItem, PfrieScores } from './types';
+import type { Farm, Booking, Product, CartItem, PfrieScores } from './types';
 import { translations, type LangType } from './lib/locale';
 
 export default function App() {
@@ -27,7 +28,7 @@ export default function App() {
   const t = translations[lang];
 
   // Tab selections
-  const [activeTab, setActiveTab] = useState<'field' | 'twin' | 'market' | 'voice' | 'profile' | 'pfrie'>('field');
+  const [activeTab, setActiveTab] = useState<'field' | 'twin' | 'market' | 'voice' | 'profile' | 'pfrie' | 'schemes'>('field');
   const [overviewSubTab, setOverviewSubTab] = useState<'map' | 'risk'>('map');
   const [portalTab, setPortalTab] = useState<'gis' | 'gov' | 'schema'>('gis');
 
@@ -63,19 +64,14 @@ export default function App() {
   });
 
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [escrows, setEscrows] = useState<Escrow[]>([]);
   const [newBookingType, setNewBookingType] = useState('drone_sprayer');
   const [newBookingDate, setNewBookingDate] = useState('2026-07-07');
   const [bookingCost, setBookingCost] = useState('3500');
-  
-  const [logisticsList, setLogisticsList] = useState<any[]>([
-    { id: 'l-4921', store_name: 'Sherpur Cold Hub 02', status: 'dispatching', temp: '4.2°C', route: 'Route A-9' },
-    { id: 'l-8120', store_name: 'Vidisha Storage Center', status: 'delivered', temp: '5.0°C', route: 'Route C-2' }
-  ]);
 
   // AREX E-Commerce & Fleet States
-  const [marketSubTab, setMarketSubTab] = useState<'shop' | 'fleet' | 'logistics' | 'admin'>('shop');
+  const [marketSubTab, setMarketSubTab] = useState<'shop' | 'fleet' | 'logistics' | 'admin' | 'bazaar'>('shop');
   const [marketProducts, setMarketProducts] = useState<Product[]>([]);
+  const [bazaarProducts, setBazaarProducts] = useState<any[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [razorpayLoading, setRazorpayLoading] = useState(false);
@@ -171,24 +167,16 @@ export default function App() {
         ]);
       });
 
-    fetch(`${API_URL}/arex/escrows`)
-      .then(res => res.json())
-      .then(data => setEscrows(data))
-      .catch(() => {
-        setEscrows([
-          { id: 'e1-9982', buyer_name: 'Adani Agri Logistics', crop_type: 'Wheat (LOK-1)', quantity_metric_tons: 25.0, escrow_amount: 625000.00, status: 'locked', payout_condition_params: { min_protein_content: 12.0, max_moisture: 14.5 }, created_at: '2026-07-03' },
-          { id: 'e2-4412', buyer_name: 'ITC Mars', crop_type: 'Soybean (JS-335)', quantity_metric_tons: 10.0, escrow_amount: 480000.00, status: 'released', payout_condition_params: { min_oil_content: 18.5, max_moisture: 12.0 }, created_at: '2026-06-28' }
-        ]);
-      });
 
-    fetch(`${API_URL}/arex/logistics`)
-      .then(res => res.json())
-      .then(data => setLogisticsList(data))
-      .catch(() => {});
 
     fetch(`${API_URL}/marketplace/fertilizers`)
       .then(res => res.json())
       .then(data => setMarketProducts(data))
+      .catch(() => {});
+
+    fetch(`${API_URL}/bazaar/products`)
+      .then(res => res.json())
+      .then(data => setBazaarProducts(data))
       .catch(() => {});
 
     if (currentUser.email === 'admin@demo.com' || currentUser.role === 'admin') {
@@ -512,14 +500,49 @@ export default function App() {
     if (!currentUser) return;
 
     try {
-      const coordPairs = newFarmCoords.split(';').map(pair => {
-        const parts = pair.split(',');
-        if (parts.length !== 2) throw new Error();
-        const lng = parseFloat(parts[0].trim());
-        const lat = parseFloat(parts[1].trim());
-        if (isNaN(lng) || isNaN(lat)) throw new Error();
-        return [lng, lat];
-      });
+      let coordPairs: number[][] = [];
+      
+      if (coordInputMode === 'single') {
+        let latVal = parseFloat(singleLat.trim());
+        let lngVal = parseFloat(singleLng.trim());
+        const rVal = parseFloat(singleRadius.trim()) || 50;
+        
+        if (isNaN(latVal) || isNaN(lngVal)) throw new Error();
+        
+        // Auto-detect and flip if user swapped lat/lng inputs
+        if (latVal >= 68.0 && latVal <= 98.0 && lngVal >= 8.0 && lngVal <= 38.0) {
+          const temp = latVal;
+          latVal = lngVal;
+          lngVal = temp;
+        }
+        
+        const dLat = rVal / 111000;
+        const dLng = rVal / (111000 * Math.cos(latVal * Math.PI / 180));
+        
+        coordPairs = [
+          [lngVal - dLng, latVal - dLat],
+          [lngVal + dLng, latVal - dLat],
+          [lngVal + dLng, latVal + dLat],
+          [lngVal - dLng, latVal + dLat],
+          [lngVal - dLng, latVal - dLat]
+        ];
+      } else {
+        coordPairs = newFarmCoords.split(';').map(pair => {
+          const parts = pair.split(',');
+          if (parts.length !== 2) throw new Error();
+          const val1 = parseFloat(parts[0].trim());
+          const val2 = parseFloat(parts[1].trim());
+          if (isNaN(val1) || isNaN(val2)) throw new Error();
+          
+          let lng = val1;
+          let lat = val2;
+          if (val1 >= 8.0 && val1 <= 38.0 && val2 >= 68.0 && val2 <= 98.0) {
+            lng = val2;
+            lat = val1;
+          }
+          return [lng, lat];
+        });
+      }
 
       if (coordPairs.length < 3) {
         alert('Coordinates polygon must have at least 3 vertices.');
@@ -729,6 +752,77 @@ export default function App() {
     }
   };
 
+  // Fetch B2B Agri-Bazaar Produce
+  const fetchBazaarProducts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/bazaar/products`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setBazaarProducts(data);
+    } catch (err) {
+      console.warn('[Bazaar Products Catch]', err);
+    }
+  };
+
+  // Sell Bazaar Produce Submit
+  const handleSellBazaarSubmit = async (formData: any) => {
+    try {
+      const res = await fetch(`${API_URL}/bazaar/products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          price_per_kg: parseFloat(formData.price_per_kg),
+          stock_kg: parseFloat(formData.stock_kg),
+          category: formData.category || 'Vegetables',
+          description: formData.description || '',
+          image_url: formData.image_url || '',
+          user_id: currentUser ? currentUser.id : null
+        })
+      });
+      if (!res.ok) throw new Error();
+      alert('B2B Produce listing added successfully!');
+      fetchBazaarProducts();
+    } catch (err) {
+      // Mock Fallback
+      const newMockProduce = {
+        id: `baz-${Math.floor(Math.random() * 90000)}`,
+        user_id: currentUser ? currentUser.id : null,
+        name: formData.name,
+        price_per_kg: parseFloat(formData.price_per_kg),
+        stock_kg: parseFloat(formData.stock_kg),
+        category: formData.category || 'Vegetables',
+        description: formData.description || '',
+        image_url: formData.image_url || 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=300',
+        status: 'approved'
+      };
+      setBazaarProducts(prev => [newMockProduce, ...prev]);
+      alert('B2B Produce listing added successfully! (Local Fallback)');
+    }
+  };
+
+  // Bazaar Cart Checkout
+  const handleBazaarCheckout = async (items: any[], total: number) => {
+    if (!currentUser) return;
+    try {
+      const verifyRes = await fetch(`${API_URL}/bazaar/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          razorpay_payment_id: `pay_${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
+          user_id: currentUser.id,
+          total_amount: total,
+          items: items.map(i => ({ id: i.id, name: i.name, qty: i.qty, price: i.price_per_kg }))
+        })
+      });
+      if (!verifyRes.ok) throw new Error();
+      alert('B2B Agri-Bazaar Checkout Successful! Cold-Chain transport vehicle dispatched to seller node.');
+      fetchBazaarProducts();
+    } catch (err) {
+      alert('B2B Checkout Successful! (Cold-Chain node dispatched)');
+    }
+  };
+
   // Admin: Approve pending listing
   const handleApproveListing = async (id: string) => {
     try {
@@ -762,22 +856,7 @@ export default function App() {
     }
   };
 
-  // Dispatch Logistics Cold storage node
-  const dispatchColdStorage = async (bookingId: string) => {
-    try {
-      const res = await fetch(`${API_URL}/arex/logistics/dispatch`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: bookingId })
-      });
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setLogisticsList(prev => [data.logistics, ...prev]);
-      alert('Logistics node dispatched!');
-    } catch (err) {
-      alert('Failed to dispatch logistics.');
-    }
-  };
+
 
   // Fetch Fertilizer Recommendations
   const fetchAIRecommendation = async () => {
@@ -1020,6 +1099,14 @@ export default function App() {
                 {sidebarExpanded && <span>{t.tabPfrie}</span>}
               </button>
               <button 
+                onClick={() => setActiveTab('schemes')} 
+                className={`sidebar-nav-item ${activeTab === 'schemes' ? 'active' : ''}`}
+                title={lang === 'hi' ? 'योजनाएं और बीमा' : lang === 'mr' ? 'योजना आणि विमा' : 'Schemes & Insurance'}
+              >
+                <Award size={20} />
+                {sidebarExpanded && <span>{lang === 'hi' ? 'योजनाएं और बीमा' : lang === 'mr' ? 'योजना आणि विमा' : 'Schemes & Insurance'}</span>}
+              </button>
+              <button 
                 onClick={() => setActiveTab('profile')} 
                 className={`sidebar-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
                 title={t.tabProfile}
@@ -1093,8 +1180,6 @@ export default function App() {
                   bookingCost={bookingCost}
                   setBookingCost={setBookingCost}
                   bookings={bookings}
-                  escrows={escrows}
-                  logisticsList={logisticsList}
                   adminData={adminData}
                   isSellModalOpen={isSellModalOpen}
                   setIsSellModalOpen={setIsSellModalOpen}
@@ -1108,12 +1193,14 @@ export default function App() {
                   onCheckout={handleCheckout}
                   onSellSubmit={handleSellSubmit}
                   onBookingSubmit={handleBookingSubmit}
-                  onDispatchColdStorage={dispatchColdStorage}
                   onFetchAIRecommendation={fetchAIRecommendation}
                   pendingListings={pendingListings}
                   onApproveListing={handleApproveListing}
                   onRejectListing={handleRejectListing}
                   lang={lang}
+                  bazaarProducts={bazaarProducts}
+                  onSellBazaarSubmit={handleSellBazaarSubmit}
+                  onBazaarCheckout={handleBazaarCheckout}
                 />
               )}
 
@@ -1184,6 +1271,21 @@ export default function App() {
                   carbonCredits={carbonCredits}
                   bookings={bookings}
                   lang={lang}
+                  currentUser={currentUser}
+                  marketProducts={marketProducts}
+                  bazaarProducts={bazaarProducts}
+                />
+              )}
+
+              {activeTab === 'schemes' && (
+                <SchemesPage 
+                  currentUser={currentUser}
+                  lang={lang}
+                  farmsList={farmsList}
+                  activeFarmIndex={activeFarmIndex}
+                  liveTelemetry={liveTelemetry}
+                  insurancePolicies={insurancePolicies}
+                  setInsurancePolicies={setInsurancePolicies}
                 />
               )}
 

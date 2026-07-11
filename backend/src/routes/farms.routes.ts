@@ -44,6 +44,46 @@ const formatPostGISPolygon = (coords: number[][]) => {
   return `POLYGON((${pointsStr}))`;
 };
 
+// EWKB Polygon Binary Hex Parser
+const parseEWKBPolygon = (hex: string): number[][] | null => {
+  try {
+    const buffer = Buffer.from(hex, 'hex');
+    let offset = 0;
+    
+    const littleEndian = buffer.readUInt8(offset) === 1;
+    offset += 1;
+    
+    const type = littleEndian ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+    offset += 4;
+    
+    const hasSRID = (type & 0x20000000) !== 0;
+    if (hasSRID) {
+      offset += 4;
+    }
+    
+    const numRings = littleEndian ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+    offset += 4;
+    
+    if (numRings === 0) return null;
+    
+    const numPoints = littleEndian ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+    offset += 4;
+    
+    const coords: number[][] = [];
+    for (let i = 0; i < numPoints; i++) {
+      const x = littleEndian ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
+      offset += 8;
+      const y = littleEndian ? buffer.readDoubleLE(offset) : buffer.readDoubleBE(offset);
+      offset += 8;
+      coords.push([x, y]);
+    }
+    return coords;
+  } catch (e) {
+    console.error('[EWKB Parse Error]', e);
+    return null;
+  }
+};
+
 router.get('/farms', async (req: Request, res: Response) => {
   const { user_id } = req.query;
   if (supabase) {
@@ -60,7 +100,10 @@ router.get('/farms', async (req: Request, res: Response) => {
       if (!error && data) {
         const mapped = data.map((farm: any) => {
           let coordinates = [[76.3, 20.2], [76.4, 20.2], [76.4, 20.3], [76.3, 20.3], [76.3, 20.2]];
-          if (typeof farm.boundary === 'string') {
+          if (typeof farm.boundary === 'string' && /^[0-9a-fA-F]+$/.test(farm.boundary)) {
+            const parsed = parseEWKBPolygon(farm.boundary);
+            if (parsed) coordinates = parsed;
+          } else if (typeof farm.boundary === 'string') {
             try {
               const matches = farm.boundary.match(/\(\((.*?)\)\)/);
               if (matches && matches[1]) {

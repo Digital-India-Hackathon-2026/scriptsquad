@@ -4,8 +4,8 @@ import { translations, type LangType } from '../lib/locale';
 
 interface MarketPageProps {
   currentUser: any;
-  marketSubTab: 'shop' | 'fleet' | 'logistics' | 'admin';
-  setMarketSubTab: (tab: 'shop' | 'fleet' | 'logistics' | 'admin') => void;
+  marketSubTab: 'shop' | 'fleet' | 'logistics' | 'admin' | 'bazaar';
+  setMarketSubTab: (tab: 'shop' | 'fleet' | 'logistics' | 'admin' | 'bazaar') => void;
   marketProducts: any[];
   cartItems: any[];
   isCartOpen: boolean;
@@ -21,8 +21,6 @@ interface MarketPageProps {
   sellFertNpk: string;
   setSellFertNpk: (v: string) => void;
   bookings: any[];
-  escrows: any[];
-  logisticsList: any[];
   adminData: any;
   newBookingType: string;
   setNewBookingType: (v: string) => void;
@@ -43,11 +41,13 @@ interface MarketPageProps {
   onCheckout: () => void;
   onSellSubmit: (formData: any) => void;
   onFetchAIRecommendation: () => void;
-  onDispatchColdStorage: (id: string, storeName: string) => void;
   pendingListings: any[];
   onApproveListing: (id: string) => void;
   onRejectListing: (id: string) => void;
   lang: LangType;
+  bazaarProducts: any[];
+  onSellBazaarSubmit: (formData: any) => void;
+  onBazaarCheckout: (items: any[], total: number) => void;
 }
 
 const MarketPage: React.FC<MarketPageProps> = ({
@@ -69,8 +69,6 @@ const MarketPage: React.FC<MarketPageProps> = ({
   sellFertNpk,
   setSellFertNpk,
   bookings,
-  escrows,
-  logisticsList,
   adminData,
   newBookingType,
   setNewBookingType,
@@ -91,11 +89,13 @@ const MarketPage: React.FC<MarketPageProps> = ({
   onCheckout,
   onSellSubmit,
   onFetchAIRecommendation,
-  onDispatchColdStorage,
   pendingListings,
   onApproveListing,
   onRejectListing,
   lang,
+  bazaarProducts,
+  onSellBazaarSubmit,
+  onBazaarCheckout,
 }) => {
   const t = translations[lang];
   const isAdmin = currentUser?.role === 'admin';
@@ -117,10 +117,83 @@ const MarketPage: React.FC<MarketPageProps> = ({
   const [sellSellerPhone, setSellSellerPhone] = useState('');
   const [sellSellerEmail, setSellSellerEmail] = useState('');
 
+  // Agri-Bazaar local states
+  const [bazaarCart, setBazaarCart] = useState<any[]>([]);
+  const [isBazaarCartOpen, setIsBazaarCartOpen] = useState(false);
+  const [isSellBazaarOpen, setIsSellBazaarOpen] = useState(false);
+  const [bazaarSearch, setBazaarSearch] = useState('');
+  const [bazaarCategoryFilter, setBazaarCategoryFilter] = useState('All');
+  
+  // Sell Produce form states
+  const [sellProduceName, setSellProduceName] = useState('');
+  const [sellProducePrice, setSellProducePrice] = useState('');
+  const [sellProduceStock, setSellProduceStock] = useState('');
+  const [sellProduceCategory, setSellProduceCategory] = useState('Vegetables');
+  const [sellProduceImageUrl, setSellProduceImageUrl] = useState('');
+  const [sellProduceDesc, setSellProduceDesc] = useState('');
+
   // Handle fallback images
   const handleImageError = (productId: string) => {
     setImageErrors(prev => ({ ...prev, [productId]: true }));
   };
+
+  // Bazaar helper functions
+  const handleBazaarAddToCart = (p: any) => {
+    setBazaarCart(prev => {
+      const existing = prev.find(item => item.id === p.id);
+      if (existing) {
+        return prev.map(item => item.id === p.id ? { ...item, qty: item.qty + 1 } : item);
+      }
+      return [...prev, { ...p, qty: 1 }];
+    });
+  };
+
+  const handleBazaarRemoveFromCart = (productId: string) => {
+    setBazaarCart(prev => prev.filter(item => item.id !== productId));
+  };
+
+  const handleBazaarQtyChange = (productId: string, val: number) => {
+    if (val <= 0) {
+      handleBazaarRemoveFromCart(productId);
+      return;
+    }
+    setBazaarCart(prev => prev.map(item => item.id === productId ? { ...item, qty: val } : item));
+  };
+
+  const handleBazaarCheckoutSubmit = () => {
+    const total = bazaarCart.reduce((sum, item) => sum + (item.price_per_kg * item.qty), 0);
+    onBazaarCheckout(bazaarCart, total);
+    setBazaarCart([]);
+    setIsBazaarCartOpen(false);
+  };
+
+  const handleSellBazaarSubmitLocal = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSellBazaarSubmit({
+      name: sellProduceName,
+      price_per_kg: sellProducePrice,
+      stock_kg: sellProduceStock,
+      category: sellProduceCategory,
+      image_url: sellProduceImageUrl,
+      description: sellProduceDesc
+    });
+    // Reset fields
+    setSellProduceName('');
+    setSellProducePrice('');
+    setSellProduceStock('');
+    setSellProduceCategory('Vegetables');
+    setSellProduceImageUrl('');
+    setSellProduceDesc('');
+    setIsSellBazaarOpen(false);
+  };
+
+  // Filter B2B produce items
+  const filteredBazaarProducts = bazaarProducts.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(bazaarSearch.toLowerCase()) ||
+                          (p.description && p.description.toLowerCase().includes(bazaarSearch.toLowerCase()));
+    const matchesCategory = bazaarCategoryFilter === 'All' || p.category === bazaarCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
 
   // Categories list
   const categories = ['All', 'Nitrogenous', 'Phosphatic', 'Potassic', 'Organic', 'Bio-Fertilizer', 'General'];
@@ -185,12 +258,12 @@ const MarketPage: React.FC<MarketPageProps> = ({
           {t.marketFleetTab}
         </button>
         <button
-          onClick={() => setMarketSubTab('logistics')}
-          className={`btn ${marketSubTab === 'logistics' ? 'btn-primary' : 'btn-secondary'}`}
+          onClick={() => setMarketSubTab('bazaar')}
+          className={`btn ${marketSubTab === 'bazaar' ? 'btn-primary' : 'btn-secondary'}`}
           style={{ justifyContent: 'flex-start', padding: '0.75rem 1rem', fontSize: '0.82rem', width: '100%', borderRadius: '10px' }}
         >
-          <Truck size={16} />
-          {lang === 'hi' ? 'लॉजिस्टिक्स ट्रैकिंग' : lang === 'mr' ? 'लॉजिस्टिक्स ट्रॅकिंग' : 'Logistics Ledgers'}
+          <ShoppingBag size={16} />
+          {lang === 'hi' ? 'कृषि बाज़ार (B2B)' : lang === 'mr' ? 'कृषि बाजार (B2B)' : 'Agri-Bazaar (B2B)'}
         </button>
 
         {/* Admin tab - visible for admin role or admin@demo.com */}
@@ -652,58 +725,325 @@ const MarketPage: React.FC<MarketPageProps> = ({
             </div>
           )}
 
-          {/* --- LOGISTICS & ESCROWS TAB --- */}
-          {marketSubTab === 'logistics' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1.1fr 0.9fr', gap: '1.5rem' }} className="grid-2">
+
+          {/* --- B2B AGRI-BAZAAR TAB --- */}
+          {marketSubTab === 'bazaar' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1 }}>
               
-              {/* Escrow System */}
-              <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                <h4 style={{ fontSize: '0.92rem', marginBottom: '1rem', fontWeight: 800 }}>{t.marketEscrowsTitle}</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {escrows.map((e, idx) => (
-                    <div key={idx} style={{ background: '#f8fafc', border: '1px solid var(--border-gov)', padding: '10px', borderRadius: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', fontWeight: 700 }}>
-                        <span>{e.crop_type} ({e.quantity_metric_tons} MT)</span>
-                        <span style={{ color: e.status === 'locked' ? 'var(--tech-blue)' : 'var(--primary-emerald)' }}>{e.status}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                        <span>{t.marketBuyerLabel}: {e.buyer_name}</span>
-                        <span>{t.marketEscrowAmount}: INR {e.escrow_amount}</span>
-                      </div>
-                      
-                      {e.status === 'locked' && (
-                        <div style={{ marginTop: '8px', borderTop: '1px dashed var(--border-gov)', paddingTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Quality params locked. Dispatch logistics node?</span>
-                          <button 
-                            onClick={() => onDispatchColdStorage(e.id, 'Sherpur Cold Hub')}
-                            className="btn btn-primary" style={{ padding: '2px 8px', fontSize: '0.65rem' }}
-                          >
-                            Dispatch Cold chain
-                          </button>
-                        </div>
-                      )}
-                    </div>
+              {/* Bazaar Banner */}
+              <div 
+                className="glass-panel" 
+                style={{ 
+                  padding: '1.5rem', 
+                  background: 'linear-gradient(135deg, #065f46 0%, #047857 100%)', 
+                  color: '#ffffff', 
+                  borderRadius: '16px',
+                  border: 'none',
+                  position: 'relative',
+                  overflow: 'hidden'
+                }}
+              >
+                <div style={{ position: 'relative', zIndex: 2 }}>
+                  <span style={{ fontSize: '0.68rem', fontWeight: 800, background: 'rgba(255,255,255,0.2)', padding: '3px 8px', borderRadius: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    B2B Farm-to-Fork Direct Trade
+                  </span>
+                  <h2 style={{ fontSize: '1.4rem', fontWeight: 800, marginTop: '8px', color: '#ffffff' }}>
+                    Agri-Bazaar: Fresh Produce Exchange
+                  </h2>
+                  <p style={{ fontSize: '0.8rem', opacity: 0.9, marginTop: '4px', maxWidth: '550px', lineHeight: '1.4' }}>
+                    Directly trade fresh vegetables, fruits, and organic produce with commercial buyers and restaurants. Guaranteed temperature-controlled cold chain transit.
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '1.25rem' }}>
+                    <button 
+                      onClick={() => setIsSellBazaarOpen(true)}
+                      className="btn" 
+                      style={{ background: '#ffffff', color: '#065f46', fontWeight: 800, padding: '0.5rem 1rem', fontSize: '0.8rem', borderRadius: '8px' }}
+                    >
+                      <Plus size={14} /> List B2B Produce
+                    </button>
+                    <button 
+                      onClick={() => setIsBazaarCartOpen(true)}
+                      className="btn" 
+                      style={{ background: 'rgba(255,255,255,0.15)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.3)', fontWeight: 800, padding: '0.5rem 1.25rem', fontSize: '0.8rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    >
+                      <ShoppingCart size={14} /> Bazaar Cart ({bazaarCart.reduce((sum, item) => sum + item.qty, 0)})
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Search and Filters */}
+              <div className="glass-panel" style={{ padding: '1rem', background: '#ffffff', borderRadius: '12px' }}>
+                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  
+                  {/* Search Produce */}
+                  <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                    <input 
+                      type="text" 
+                      placeholder="Search fresh vegetables, fruits, cooperative listings..." 
+                      value={bazaarSearch}
+                      onChange={(e) => setBazaarSearch(e.target.value)}
+                      style={{ width: '100%', paddingLeft: '2.25rem', borderRadius: '8px', fontSize: '0.82rem' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Category Selector */}
+                <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '0.85rem', paddingBottom: '2px' }} className="hide-scrollbar">
+                  {['All', 'Vegetables', 'Fruits', 'Herbs', 'Grains'].map((cat, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setBazaarCategoryFilter(cat)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        border: '1px solid',
+                        borderColor: bazaarCategoryFilter === cat ? '#047857' : 'var(--border-gov)',
+                        background: bazaarCategoryFilter === cat ? '#ecfdf5' : '#ffffff',
+                        color: bazaarCategoryFilter === cat ? '#047857' : 'var(--text-body)',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        whiteSpace: 'nowrap'
+                      }}
+                    >
+                      {cat === 'All' ? '🥬 All Produce' : cat}
+                    </button>
                   ))}
                 </div>
               </div>
 
-              {/* Cold storage logs */}
-              <div className="glass-panel" style={{ padding: '1.25rem' }}>
-                <h4 style={{ fontSize: '0.92rem', marginBottom: '1rem', fontWeight: 800 }}>{t.marketLogisticsTitle}</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {logisticsList.map((log, idx) => (
-                    <div key={idx} style={{ background: '#f8fafc', border: '1px solid var(--border-gov)', padding: '8px 12px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <strong style={{ fontSize: '0.78rem', display: 'block' }}>{log.store_name}</strong>
-                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{t.marketLogisticsRoute}: {log.route} | {t.marketLogisticsTemp}: {log.temp}</span>
+              {/* B2B Produce Grid */}
+              <div>
+                <h3 style={{ fontSize: '1rem', color: 'var(--primary-deep)', fontWeight: 800, marginBottom: '0.75rem' }}>
+                  B2B Bulk Listings ({filteredBazaarProducts.length} items)
+                </h3>
+
+                {filteredBazaarProducts.length === 0 ? (
+                  <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', background: '#ffffff', borderRadius: '12px' }}>
+                    <HelpCircle size={40} style={{ color: 'var(--text-muted)', margin: '0 auto 12px' }} />
+                    <p style={{ fontSize: '0.9rem', fontWeight: 700 }}>No B2B listings matched your filters.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(215px, 1fr))', gap: '1.25rem' }}>
+                    {filteredBazaarProducts.map((p, idx) => (
+                      <div 
+                        key={p.id || idx} 
+                        className="glass-panel" 
+                        style={{ 
+                          background: '#ffffff',
+                          borderRadius: '12px', 
+                          display: 'flex', 
+                          flexDirection: 'column', 
+                          overflow: 'hidden', 
+                          border: '1px solid #e2e8f0',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                        }}
+                      >
+                        <div style={{ height: '120px', background: '#f1f5f9', position: 'relative', overflow: 'hidden' }}>
+                          <img 
+                            src={p.image_url || 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=300'} 
+                            alt={p.name} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                          <span style={{ position: 'absolute', top: '8px', left: '8px', fontSize: '0.62rem', background: '#047857', color: '#ffffff', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
+                            {p.category}
+                          </span>
+                        </div>
+
+                        <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', flex: 1, gap: '4px' }}>
+                          <h4 style={{ fontSize: '0.82rem', fontWeight: 800, color: 'var(--text-title)', margin: 0 }}>
+                            {p.name}
+                          </h4>
+                          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, flex: 1, lineHeight: '1.3' }}>
+                            {p.description || 'Premium grade fresh produce harvested locally.'}
+                          </p>
+
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                            <div>
+                              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#047857' }}>
+                                ₹{p.price_per_kg}
+                              </span>
+                              <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}> / kg</span>
+                            </div>
+                            <span style={{ fontSize: '0.62rem', background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                              Stock: <strong>{p.stock_kg} kg</strong>
+                            </span>
+                          </div>
+
+                          <button 
+                            onClick={() => handleBazaarAddToCart(p)}
+                            className="btn btn-primary"
+                            style={{ width: '100%', marginTop: '8px', padding: '6px', fontSize: '0.75rem', borderRadius: '6px', background: '#047857', borderColor: '#047857' }}
+                          >
+                            Add to B2B Cart
+                          </button>
+                        </div>
                       </div>
-                      <span style={{ fontSize: '0.7rem', background: 'var(--primary-mint)', color: 'var(--primary-emerald)', padding: '2px 6px', borderRadius: '4px', fontWeight: 'bold' }}>
-                        {log.status}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* B2B CART MODAL */}
+              {isBazaarCartOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+                  <div className="glass-panel" style={{ width: '100%', maxWidth: '420px', background: '#ffffff', padding: '1.25rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#065f46', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <ShoppingCart size={18} /> B2B Produce Cart
+                      </h3>
+                      <button onClick={() => setIsBazaarCartOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        <XCircle size={18} />
+                      </button>
+                    </div>
+
+                    {bazaarCart.length === 0 ? (
+                      <p style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', padding: '2rem 0' }}>
+                        Your B2B cart is empty. Add produce from the bazaar list.
+                      </p>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '240px', overflowY: 'auto' }}>
+                          {bazaarCart.map((item, idx) => (
+                            <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
+                              <div>
+                                <strong style={{ fontSize: '0.78rem', display: 'block' }}>{item.name}</strong>
+                                <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>₹{item.price_per_kg} / kg</span>
+                              </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <input 
+                                  type="number" 
+                                  value={item.qty} 
+                                  onChange={(e) => handleBazaarQtyChange(item.id, parseInt(e.target.value) || 0)}
+                                  style={{ width: '50px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '4px', textAlign: 'center' }}
+                                />
+                                <button onClick={() => handleBazaarRemoveFromCart(item.id)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>
+                                  <XCircle size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={{ borderTop: '1px solid var(--border-gov)', paddingTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <strong style={{ fontSize: '0.85rem' }}>Total Amount:</strong>
+                          <strong style={{ fontSize: '1rem', color: '#065f46' }}>
+                            ₹{bazaarCart.reduce((sum, item) => sum + (item.price_per_kg * item.qty), 0)}
+                          </strong>
+                        </div>
+
+                        <button 
+                          onClick={handleBazaarCheckoutSubmit}
+                          className="btn btn-primary"
+                          style={{ width: '100%', padding: '10px', borderRadius: '8px', fontSize: '0.8rem', background: '#065f46', borderColor: '#065f46', fontWeight: 800 }}
+                        >
+                          Checkout & Dispatch Cold Chain
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* LIST PRODUCE FOR SALE MODAL */}
+              {isSellBazaarOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000, padding: '1rem' }}>
+                  <form onSubmit={handleSellBazaarSubmitLocal} className="glass-panel" style={{ width: '100%', maxWidth: '440px', background: '#ffffff', padding: '1.25rem', borderRadius: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1rem', fontWeight: 800, color: '#065f46' }}>🌱 List Produce for B2B Sale</h3>
+                      <button type="button" onClick={() => setIsSellBazaarOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                        <XCircle size={18} />
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Produce Name</label>
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="e.g. Organic Beefsteak Tomatoes" 
+                        value={sellProduceName}
+                        onChange={(e) => setSellProduceName(e.target.value)}
+                        style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Price (₹ per kg)</label>
+                        <input 
+                          type="number" 
+                          required 
+                          placeholder="e.g. 45" 
+                          value={sellProducePrice}
+                          onChange={(e) => setSellProducePrice(e.target.value)}
+                          style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Stock (kg)</label>
+                        <input 
+                          type="number" 
+                          required 
+                          placeholder="e.g. 500" 
+                          value={sellProduceStock}
+                          onChange={(e) => setSellProduceStock(e.target.value)}
+                          style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Category</label>
+                      <select 
+                        value={sellProduceCategory}
+                        onChange={(e) => setSellProduceCategory(e.target.value)}
+                        style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px', background: '#ffffff', border: '1px solid var(--border-gov)' }}
+                      >
+                        <option value="Vegetables">Vegetables</option>
+                        <option value="Fruits">Fruits</option>
+                        <option value="Herbs">Herbs</option>
+                        <option value="Grains">Grains</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Image URL (Optional)</label>
+                      <input 
+                        type="url" 
+                        placeholder="https://example.com/image.jpg" 
+                        value={sellProduceImageUrl}
+                        onChange={(e) => setSellProduceImageUrl(e.target.value)}
+                        style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.72rem', fontWeight: 700 }}>Description</label>
+                      <textarea 
+                        rows={3} 
+                        placeholder="Details about quality parameters, harvest date, cooperative details..." 
+                        value={sellProduceDesc}
+                        onChange={(e) => setSellProduceDesc(e.target.value)}
+                        style={{ padding: '6px', fontSize: '0.78rem', borderRadius: '6px', resize: 'none' }}
+                      />
+                    </div>
+
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary"
+                      style={{ width: '100%', padding: '8px', fontSize: '0.8rem', borderRadius: '8px', background: '#065f46', borderColor: '#065f46', fontWeight: 800, marginTop: '4px' }}
+                    >
+                      Publish B2B Listing
+                    </button>
+                  </form>
+                </div>
+              )}
+
             </div>
           )}
 

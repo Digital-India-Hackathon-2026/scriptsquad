@@ -268,7 +268,7 @@ CREATE OR REPLACE TRIGGER on_auth_user_created
 DROP TABLE IF EXISTS public.marketplace_products CASCADE;
 CREATE TABLE public.marketplace_products (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users ON DELETE SET NULL,
+    user_id VARCHAR(100),
     name VARCHAR(200) NOT NULL,
     brand VARCHAR(100),
     npk_ratio VARCHAR(30) DEFAULT '0-0-0',
@@ -314,4 +314,99 @@ CREATE TABLE public.marketplace_orders (
 ALTER TABLE public.marketplace_orders ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow users to view their own orders" ON public.marketplace_orders FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Allow insert for all orders" ON public.marketplace_orders FOR INSERT WITH CHECK (true);
+
+
+-- =======================================================
+-- 13. B2B Agri-Bazaar Produce Listings (Vegetables & Fruits)
+-- =======================================================
+DROP TABLE IF EXISTS public.bazaar_products CASCADE;
+CREATE TABLE public.bazaar_products (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(100),
+    name VARCHAR(200) NOT NULL,
+    price_per_kg NUMERIC(10, 2) NOT NULL,
+    stock_kg NUMERIC(10, 2) DEFAULT 100.00,
+    image_url TEXT,
+    category VARCHAR(50) DEFAULT 'Vegetables' CHECK (category IN ('Vegetables', 'Fruits', 'Herbs', 'Grains')),
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'approved' CHECK (status IN ('pending', 'approved', 'rejected')),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.bazaar_products ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow select for all bazaar products" ON public.bazaar_products FOR SELECT USING (true);
+CREATE POLICY "Allow insert for all bazaar products" ON public.bazaar_products FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update for all bazaar products" ON public.bazaar_products FOR UPDATE USING (true);
+
+-- Seed default approved B2B produce items
+INSERT INTO public.bazaar_products (name, price_per_kg, stock_kg, image_url, category, description, status)
+VALUES 
+('Organic Tomatoes (JS-Var)', 45.00, 500, 'https://images.unsplash.com/photo-1595855759920-86582396756a?w=300', 'Vegetables', 'Fresh organically harvested tomatoes from local Vidisha cooperative. Transported in cold-chain.', 'approved'),
+('Fresh Potatoes (Kufri Jyoti)', 28.00, 1200, 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=300', 'Vegetables', 'High starch, premium boiling potatoes. Harvested under 10 days.', 'approved'),
+('Premium Nagpur Oranges', 90.00, 300, 'https://images.unsplash.com/photo-1611080626919-7cf5a9dbab5b?w=300', 'Fruits', 'Sweet, juicy citrus oranges direct from Nagpur growers.', 'approved'),
+('Fresh Green Chillies', 60.00, 150, 'https://images.unsplash.com/photo-1588252303782-cb80119abd6d?w=300', 'Herbs', 'Extremely spicy, organic green chillies ideal for hotel bulk supply.', 'approved');
+
+
+-- =======================================================
+-- 14. B2B Agri-Bazaar Orders
+-- =======================================================
+DROP TABLE IF EXISTS public.bazaar_orders CASCADE;
+CREATE TABLE public.bazaar_orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(100),
+    payment_id VARCHAR(100),
+    total_amount NUMERIC(10, 2) NOT NULL,
+    status VARCHAR(20) DEFAULT 'completed',
+    items JSONB NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.bazaar_orders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow users to view their own bazaar orders" ON public.bazaar_orders FOR SELECT USING (true);
+CREATE POLICY "Allow insert for all bazaar orders" ON public.bazaar_orders FOR INSERT WITH CHECK (true);
+
+-- =======================================================
+-- 15. Applied Government Schemes Ledger
+-- =======================================================
+DROP TABLE IF EXISTS public.applied_schemes CASCADE;
+CREATE TABLE public.applied_schemes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id VARCHAR(100) NOT NULL,
+    scheme_id VARCHAR(100) NOT NULL,
+    scheme_name VARCHAR(200) NOT NULL,
+    applied_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    status VARCHAR(50) DEFAULT 'Under Review' CHECK (status IN ('Submitted', 'Under Review', 'Approved', 'Rejected', 'Disbursed')),
+    documents JSONB DEFAULT '[]'::jsonb,
+    remarks TEXT,
+    tracking_code VARCHAR(100) NOT NULL
+);
+
+ALTER TABLE public.applied_schemes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow select for all applied schemes" ON public.applied_schemes FOR SELECT USING (true);
+CREATE POLICY "Allow insert for all applied schemes" ON public.applied_schemes FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow update for all applied schemes" ON public.applied_schemes FOR UPDATE USING (true);
+
+-- =======================================================
+-- 16. Telephony Call Center Logs & Snapshots
+-- =======================================================
+DROP TABLE IF EXISTS public.voice_call_logs CASCADE;
+CREATE TABLE public.voice_call_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    phone_number VARCHAR(20) NOT NULL,
+    farmer_name VARCHAR(150),
+    farm_name VARCHAR(150),
+    crop_type VARCHAR(50),
+    telemetry_snapshot JSONB NOT NULL,
+    weather_snapshot JSONB NOT NULL,
+    matched_schemes JSONB NOT NULL,
+    ai_transcript TEXT NOT NULL,
+    call_duration_seconds INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.voice_call_logs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow select for all voice logs" ON public.voice_call_logs FOR SELECT USING (true);
+CREATE POLICY "Allow insert for all voice logs" ON public.voice_call_logs FOR INSERT WITH CHECK (true);
+
+
 

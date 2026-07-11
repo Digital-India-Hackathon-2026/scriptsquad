@@ -13,6 +13,7 @@ import {
   CloudRain
 } from 'lucide-react';
 import { translations, type LangType } from '../lib/locale';
+import { generateSoilReport } from '../lib/reportGenerator';
 
 // ─── Weather Condition Helper ──────────────────────────────────
 const getWeatherDesc = (code: number, lang: string): string => {
@@ -549,6 +550,14 @@ const OverviewPage: React.FC<OverviewPageProps> = ({
                     <strong style={{ display: 'block' }}>{liveTelemetry.potassium}</strong>
                   </div>
                 </div>
+                <button 
+                  onClick={() => generateSoilReport(activeFarm, liveTelemetry)}
+                  className="btn btn-secondary"
+                  style={{ width: '100%', padding: '5px', fontSize: '0.7rem', marginTop: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                >
+                  <FileText size={12} />
+                  {lang === 'hi' ? 'मृदा स्वास्थ्य पत्रक PDF' : 'Download Soil Card PDF'}
+                </button>
               </div>
 
               {/* Weather Telemetry widget */}

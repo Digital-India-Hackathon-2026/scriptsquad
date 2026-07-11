@@ -13,6 +13,9 @@ import pfrieRouter from './pfrie.routes';
 import marketplaceRouter from './marketplace.routes';
 import aiRouter from './ai.routes';
 
+import bazaarRouter from './bazaar.routes';
+import schemesRouter from './schemes.routes';
+
 const router = Router();
 
 router.use('/', authRouter);
@@ -28,5 +31,7 @@ router.use('/', droneRouter);
 router.use('/', pfrieRouter);
 router.use('/', marketplaceRouter);
 router.use('/', aiRouter);
+router.use('/', bazaarRouter);
+router.use('/', schemesRouter);
 
 export default router;
