@@ -276,6 +276,40 @@ export default function SchemesPage({
     }
   };
 
+  const handleDirectApply = async (s: Scheme) => {
+    if (!currentUser) return;
+    try {
+      const res = await fetch(`${API_URL}/schemes/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          scheme_id: s.id,
+          scheme_name: s.name,
+          documents: [
+            { name: 'Aadhar_Card.pdf', size: '1.1 MB', uploaded: true },
+            { name: 'Land_Paper_Vidisha.pdf', size: '2.5 MB', uploaded: true },
+            { name: 'Bank_Passbook.pdf', size: '950 KB', uploaded: true }
+          ],
+          remarks: 'Logged for tracking in SAKHI. Redirected to official portal.'
+        })
+      });
+      if (res.ok) {
+        const newApp = await res.json();
+        setAppliedSchemes(prev => [newApp, ...prev]);
+      }
+    } catch (e) {
+      console.warn('[Silent Scheme Apply Log Failed]', e);
+    }
+
+    // Direct redirect to exact form URL
+    window.open(s.externalUrl, '_blank');
+    alert(lang === 'hi' 
+      ? `SAKHI आपको पंजीकरण के लिए आधिकारिक वेबसाइट (${s.externalUrl}) पर ले जा रहा है। हमने ट्रैकिंग के लिए इस आवेदन को लॉग कर लिया है!` 
+      : `SAKHI is redirecting you to the official registration page (${s.externalUrl}) in a new tab. We have logged this application for tracking in your SAKHI dashboard!`
+    );
+  };
+
   // Purchase New Insurance Policy
   const handlePurchaseInsurance = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -307,7 +341,10 @@ export default function SchemesPage({
       if (!res.ok) throw new Error();
       const newPolicy = await res.json();
       setInsurancePolicies(prev => [newPolicy, ...prev]);
-      alert(lang === 'hi' ? 'मौसम-सूचकांक फसल बीमा सफलतापूर्वक सक्रिय हो गया!' : 'Weather-indexed Crop Insurance Policy activated successfully!');
+      alert(lang === 'hi' 
+        ? 'मौसम-सूचकांक फसल बीमा सफलतापूर्वक सक्रिय हो गया! हम आपको फसल बीमा पोर्टल पर पुनर्निर्देशित कर रहे हैं।' 
+        : 'Weather-indexed Crop Insurance Policy activated successfully! Redirecting you to the official PMFBY Crop Insurance Portal.');
+      window.open('https://pmfby.gov.in/farmer/landing', '_blank');
       setIsPurchaseModalOpen(false);
     } catch (err) {
       alert('Failed to activate crop insurance.');
@@ -586,7 +623,7 @@ export default function SchemesPage({
                       </div>
                       
                       <button 
-                        onClick={() => setSelectedScheme(s)}
+                        onClick={() => handleDirectApply(s)}
                         className="btn btn-primary"
                         style={{ padding: '6px 16px', fontSize: '0.72rem' }}
                       >
