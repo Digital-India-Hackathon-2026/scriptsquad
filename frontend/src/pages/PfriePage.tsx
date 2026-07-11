@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import {
+  Cpu,
+  Navigation,
+  Shield,
+  Leaf,
   Sprout,
   Droplet,
   ShieldAlert,
   Cloud,
   Target,
   Gauge,
-  Cpu,
-  Navigation,
-  Shield,
-  Leaf,
 } from 'lucide-react';
 import type { Farm, PfrieScores } from '../types';
 import { translations, type LangType } from '../lib/locale';
@@ -40,15 +40,10 @@ interface PfriePageProps {
   onNavigateToVoiceBookDrone: () => void;
 }
 
-const getPfrieColor = (score: number) => {
-  if (score >= 80) return 'var(--primary-emerald)';
-  if (score >= 65) return 'var(--accent-orange)';
-  return 'var(--danger)';
-};
 
 const PfriePage: React.FC<PfriePageProps> = ({
   pfrieScores,
-  pfrieLoading,
+  pfrieLoading: _pfrieLoading,
   espStatus,
   espConnectionMode,
   setEspConnectionMode,
@@ -201,177 +196,184 @@ const PfriePage: React.FC<PfriePageProps> = ({
 
   const stress = calculateStressMetrics();
 
+  const moisture = stress.activeMoisture;
+  const temp = weather ? weather.temp : 28;
+  const humidity = weather ? weather.humidity : 60;
+  const rain = weather ? weather.rain : 0;
+  const wind = weather ? weather.wind : 10;
+
+  const rootScore = Math.min(100, Math.round(40 + moisture * 1.2));
+  const groundwaterScore = Math.min(100, Math.round(35 + moisture * 1.0));
+  const diseaseScore = Math.max(0, Math.round(100 - stress.maxRisk));
+  const climateScore = Math.min(100, Math.round(100 - (temp > 35 ? (temp - 35) * 5 : 0) - (rain > 15 ? 10 : 0)));
+  const plannerScore = Math.min(100, Math.round(85 + (moisture > 30 && moisture < 60 ? 10 : -5)));
+  const resilienceScore = Math.round((rootScore + groundwaterScore + diseaseScore + climateScore + plannerScore) / 5);
+
+  const getPfrieColor = (score: number) => {
+    if (score >= 80) return 'var(--primary-emerald)';
+    if (score >= 65) return 'var(--accent-orange)';
+    return 'var(--danger)';
+  };
+
+  const engines = [
+    {
+      key: 'living_root_intelligence',
+      label: lang === 'hi' ? 'जैविक जड़ सूचकांक' : 'Living Root Intel',
+      icon: <Sprout size={20} />,
+      metric: lang === 'hi' ? `मृदा नमी: ${moisture}%` : `Soil Moisture: ${moisture}%`,
+      score: rootScore,
+      status: rootScore >= 75 ? 'healthy' : 'moderate',
+      detail: lang === 'hi'
+        ? `जड़ क्षेत्र की नमी ${moisture}% है। यह जड़ विकास के लिए अनुकूल है।`
+        : `Root zone moisture is ${moisture}%. Optimal for active root development.`
+    },
+    {
+      key: 'groundwater_digital_twin',
+      label: lang === 'hi' ? 'भूजल डिजिटल ट्विन' : 'Groundwater Twin',
+      icon: <Droplet size={20} />,
+      metric: lang === 'hi' ? `हाइड्रो-चार्ज: ${groundwaterScore}%` : `Hydro-Charge: ${groundwaterScore}%`,
+      score: groundwaterScore,
+      status: groundwaterScore >= 70 ? 'stable' : 'low',
+      detail: lang === 'hi'
+        ? `वर्तमान नमी स्तरों के आधार पर जल स्तर सुरक्षा रेटिंग ${groundwaterScore}% मापी गई है।`
+        : `Water table security rating measured at ${groundwaterScore}% based on active moisture.`
+    },
+    {
+      key: 'village_disease_intelligence',
+      label: lang === 'hi' ? 'रोग वेक्टर ट्रैकर' : 'Disease Tracker',
+      icon: <ShieldAlert size={20} />,
+      metric: lang === 'hi' ? `हवा में नमी: ${humidity}%` : `Humidity: ${humidity}%`,
+      score: diseaseScore,
+      status: diseaseScore >= 80 ? 'safe' : diseaseScore >= 60 ? 'warning' : 'critical',
+      detail: lang === 'hi'
+        ? `तापमान ${temp}°C और आर्द्रता ${humidity}% पर संक्रमण का जोखिम ${stress.fungalRisk}% है।`
+        : `Fungal risk is ${stress.fungalRisk}% at ${temp}°C and ${humidity}% humidity.`
+    },
+    {
+      key: 'climate_survival_simulator',
+      label: lang === 'hi' ? 'जलवायु सिमुलेटर' : 'Climate Survival',
+      icon: <Cloud size={20} />,
+      metric: lang === 'hi' ? `तापमान: ${temp}°C` : `Temp: ${temp}°C`,
+      score: climateScore,
+      status: climateScore >= 75 ? 'optimal' : 'warning',
+      detail: lang === 'hi'
+        ? `वर्षा ${rain} mm और हवा की गति ${wind} km/h के साथ मौसम सुरक्षा रेटिंग ${climateScore}% है।`
+        : `Crop weather safety rating is ${climateScore}% with ${rain} mm rain and ${wind} km/h wind.`
+    },
+    {
+      key: 'autonomous_seasonal_planner',
+      label: lang === 'hi' ? 'ऋतु चक्र नियोजक' : 'Seasonal Planner',
+      icon: <Target size={20} />,
+      metric: lang === 'hi' ? 'वानस्पतिक विकास चरण' : 'Vegetative Growth Phase',
+      score: plannerScore,
+      status: plannerScore >= 80 ? 'compliant' : 'moderate',
+      detail: lang === 'hi'
+        ? `वर्तमान नमी स्तर आपकी फसल के विकास चक्र के लिए उपयुक्त योजना अनुपालन दिखाता है।`
+        : `Active moisture aligns well with scheduled vegetative phase compliance.`
+    },
+    {
+      key: 'farm_resilience_score',
+      label: lang === 'hi' ? 'खेत लचीलापन सूचकांक' : 'Resilience Index',
+      icon: <Gauge size={20} />,
+      metric: lang === 'hi' ? `कुल स्थिरता: ${resilienceScore}/100` : `Stability: ${resilienceScore}/100`,
+      score: resilienceScore,
+      status: resilienceScore >= 75 ? 'good' : 'moderate',
+      detail: lang === 'hi'
+        ? `सभी वास्तविक मौसम और सेंसर डेटा को मिलाकर समग्र स्थिरता सूचकांक ${resilienceScore}% है।`
+        : `Composite agricultural resilience index is ${resilienceScore}% combining all live inputs.`
+    }
+  ];
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       
-      {/* SECTION 1: PFRIE 6-Engine Core Analytics (Fixed height / Shrinkable) */}
+      {/* SECTION 1: PFRIE 6-Engine Core Analytics */}
       <div className="glass-panel" style={{ padding: '1.25rem', flexShrink: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem', borderBottom: '2px solid var(--border-gov)', paddingBottom: '0.5rem' }}>
-          <h3 style={{ fontSize: '0.98rem', color: 'var(--primary-deep)', fontWeight: 800 }}>{t.pfrieTitle}</h3>
-          <span style={{ fontSize: '0.7rem', background: 'var(--primary-mint)', color: 'var(--primary-emerald)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>6 Sub-Engines Active</span>
+          <h3 style={{ fontSize: '0.98rem', color: 'var(--primary-deep)', fontWeight: 800 }}>
+            {lang === 'hi' ? 'फसल स्वास्थ्य एवं जोखिम प्रबंधन उप-इंजन' : 'Crop Health & Risk Management Sub-Engines'}
+          </h3>
+          <span style={{ fontSize: '0.7rem', background: 'var(--primary-mint)', color: 'var(--primary-emerald)', padding: '2px 8px', borderRadius: '4px', fontWeight: 800 }}>
+            6 Sub-Engines Active
+          </span>
         </div>
 
-        {pfrieLoading && (
-          <div style={{ textAlign: 'center', padding: '1rem' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--primary-deep)', fontWeight: 700 }}>Computing Crop Health analytics from field telemetry...</span>
-          </div>
-        )}
-
-        {pfrieScores && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }} className="grid-3">
-            {[
-              { key: 'living_root_intelligence', label: lang === 'hi' ? 'जैविक जड़ सूचकांक' : lang === 'mr' ? 'जैविक मूळ निर्देशांक' : 'Living Root Intel', icon: <Sprout size={20} />, metric: 'Soil Moisture & Microbes' },
-              { key: 'groundwater_digital_twin', label: lang === 'hi' ? 'भूजल डिजिटल ट्विन' : lang === 'mr' ? 'भूजल डिजिटल ट्विन' : 'Groundwater Twin', icon: <Droplet size={20} />, metric: 'Moisture & Nitrogen' },
-              { key: 'village_disease_intelligence', label: lang === 'hi' ? 'रोग वेक्टर ट्रैकिंग' : lang === 'mr' ? 'रोग ट्रॅकिंग' : 'Disease Tracker', icon: <ShieldAlert size={20} />, metric: 'Sentinel STAC Scan' },
-              { key: 'climate_survival_simulator', label: lang === 'hi' ? 'जलवायु सिमुलेटर' : lang === 'mr' ? 'हवामान सिमुलेटर' : 'Climate Survival', icon: <Cloud size={20} />, metric: '21-Day Temp Models' },
-              { key: 'autonomous_seasonal_planner', label: lang === 'hi' ? 'ऋतु चक्र नियोजक' : lang === 'mr' ? 'हंगामी नियोजक' : 'Seasonal Planner', icon: <Target size={20} />, metric: 'Vegetative Phase Scheduler' },
-              { key: 'farm_resilience_score', label: lang === 'hi' ? 'खेत लचीलापन सूचकांक' : lang === 'mr' ? 'लवचिकता निर्देशांक' : 'Resilience Index', icon: <Gauge size={20} />, metric: 'Composite Rating' }
-            ].map(engine => {
-              let data = { ...(pfrieScores as any)[engine.key] };
-              if (!data) return null;
-              
-              // Override with real-time dynamic calculator
-              if (engine.key === 'living_root_intelligence') {
-                const rootScore = Math.min(100, Math.round(50 + (liveTelemetry?.moisture || 33.5) * 0.9));
-                data.score = rootScore;
-                data.status = rootScore >= 75 ? 'healthy' : 'moderate';
-                data.detail = lang === 'hi' ? `जड़ बायोमास सूचकांक: ${rootScore}%। विवरण के लिए क्लिक करें।` : `Root zone biomass index: ${rootScore}%. Click to inspect details.`;
-              } else if (engine.key === 'groundwater_digital_twin') {
-                const reservoirLevel = activeFarmIndex === 0 ? 58 : activeFarmIndex === 1 ? 27 : 46;
-                let gwScore = Math.round(40 + (liveTelemetry?.moisture || 33.5) * 0.8 + (liveTelemetry?.nitrogen || 45) * 0.1);
-                if (reservoirLevel < 30) gwScore = Math.max(0, gwScore - 15);
-                gwScore = Math.min(100, gwScore);
-                data.score = gwScore;
-                data.status = gwScore >= 70 ? 'moderate' : 'low';
-                if (reservoirLevel < 30) {
-                  data.detail = lang === 'hi' ? `जलाशय स्तर संकट: ${reservoirLevel}% (कम)। विवरण के लिए क्लिक करें।` : `Reservoir alarm: ${reservoirLevel}% (Critical). Click to inspect details.`;
-                } else {
-                  data.detail = lang === 'hi' ? `भूजल डिजिटल मॉडल सक्रिय। विवरण के लिए क्लिक करें।` : `Groundwater digital twin active. Click to inspect details.`;
-                }
-              } else if (engine.key === 'village_disease_intelligence') {
-                const vectorAlert = activeFarmIndex === 0 ? 'No active alerts' : activeFarmIndex === 1 ? 'Aphid vectors (14km)' : 'Whitefly Outbreak (9km)';
-                const hasAlert = vectorAlert !== 'No active alerts';
-                let diseaseScore = 100 - stress.maxRisk;
-                if (hasAlert) diseaseScore = Math.max(0, diseaseScore - 18);
-                diseaseScore = Math.max(0, diseaseScore);
-                data.score = diseaseScore;
-                data.status = diseaseScore >= 80 ? 'safe' : diseaseScore >= 60 ? 'warning' : 'critical';
-                if (hasAlert) {
-                  data.detail = lang === 'hi' ? `क्षेत्रीय चेतावनी: ${vectorAlert} सक्रिय! विवरण देखें।` : `Regional alert: ${vectorAlert} active! Click to inspect.`;
-                } else if (stress.maxRisk > 60) {
-                  if (stress.remedyType === 'fungal') {
-                    data.detail = lang === 'hi' ? 'फंगल संक्रमण (लीफ स्पॉट) का खतरा। विवरण के लिए क्लिक करें।' : 'High Spore Germination Risk of Leaf Spot/Rust. Click to inspect details.';
-                  } else if (stress.remedyType === 'root_rot') {
-                    data.detail = lang === 'hi' ? 'जड़ों में सड़न (रूट रॉट) का खतरा। विवरण के लिए क्लिक करें।' : 'High risk of Root Rot/nutrient anoxia. Click to inspect details.';
-                  } else {
-                    data.detail = lang === 'hi' ? 'कीट पतंग संवेदनशीलता बढ़ी। विवरण के लिए क्लिक करें।' : 'Pest threat active. Dry weather spawning insect vectors. Click to inspect.';
-                  }
-                } else {
-                  data.detail = lang === 'hi' ? 'कोई सक्रिय रोग वेक्टर नहीं। विवरण के लिए क्लिक करें।' : 'No active pathogen vectors in 25km radius. Click to inspect.';
-                }
-              } else if (engine.key === 'climate_survival_simulator') {
-                data.detail = lang === 'hi' ? '२१-दिवसीय सूखा/गर्मी पूर्वानुमान मॉडल। विवरण के लिए क्लिक करें।' : '21-day heat stress & survival forecast model. Click to inspect details.';
-              } else if (engine.key === 'autonomous_seasonal_planner') {
-                data.detail = lang === 'hi' ? 'ऋतु चक्र चरण २: वानस्पतिक विकास। विवरण के लिए क्लिक करें।' : 'Timeline Phase 2: Vegetative Growth Active. Click to inspect details.';
-              } else if (engine.key === 'farm_resilience_score') {
-                const rootScore = Math.min(100, Math.round(50 + (liveTelemetry?.moisture || 33.5) * 0.9));
-                const reservoirLevel = activeFarmIndex === 0 ? 58 : activeFarmIndex === 1 ? 27 : 46;
-                let gwScore = Math.round(40 + (liveTelemetry?.moisture || 33.5) * 0.8 + (liveTelemetry?.nitrogen || 45) * 0.1);
-                if (reservoirLevel < 30) gwScore = Math.max(0, gwScore - 15);
-                gwScore = Math.min(100, gwScore);
-
-                const vectorAlert = activeFarmIndex === 0 ? 'No active alerts' : activeFarmIndex === 1 ? 'Aphid vectors (14km)' : 'Whitefly Outbreak (9km)';
-                const hasAlert = vectorAlert !== 'No active alerts';
-                let diseaseScore = 100 - stress.maxRisk;
-                if (hasAlert) diseaseScore = Math.max(0, diseaseScore - 18);
-                diseaseScore = Math.max(0, diseaseScore);
-
-                const climateScore = (pfrieScores as any).climate_survival_simulator?.score || 64;
-                const plannerScore = (pfrieScores as any).autonomous_seasonal_planner?.score || 91;
-                const compositeResilience = Math.round((rootScore + gwScore + diseaseScore + climateScore + plannerScore) / 5);
-                
-                data.score = compositeResilience;
-                data.status = compositeResilience >= 75 ? 'good' : 'moderate';
-                data.detail = lang === 'hi' ? `खेत लचीलापन सूचकांक: ${compositeResilience}/१००। विवरण के लिए क्लिक करें।` : `Plot resilience index: ${compositeResilience}/100. Click to inspect details.`;
-              }
-
-              return (
-                <div 
-                  key={engine.key} 
-                  onClick={() => setSelectedEngineDetail(engine.key)}
-                  className="glass-panel hover-card-premium"
-                  style={{ 
-                    background: '#ffffff', 
-                    border: '1px solid var(--border-gov)', 
-                    borderRadius: '8px', 
-                    padding: '1.25rem', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    gap: '10px',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    position: 'relative',
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                    cursor: 'pointer'
-                  }}
-                  title={`Click to inspect detailed ${engine.label} calculations report`}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ 
-                        color: getPfrieColor(data.score), 
-                        background: `${getPfrieColor(data.score)}15`, 
-                        borderRadius: '6px', 
-                        padding: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}>
-                        {engine.icon}
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-dark)' }}>{engine.label}</span>
-                        <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>Input: {engine.metric}</span>
-                      </div>
-                    </div>
-                    
-                    <span style={{ 
-                      fontSize: '0.62rem', 
-                      fontWeight: 800, 
-                      color: getPfrieColor(data.score),
-                      background: `${getPfrieColor(data.score)}15`,
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      textTransform: 'uppercase'
-                    }}>
-                      {data.status}
-                    </span>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }} className="grid-3">
+          {engines.map(engine => (
+            <div 
+              key={engine.key} 
+              onClick={() => setSelectedEngineDetail(engine.key)}
+              className="glass-panel hover-card-premium"
+              style={{ 
+                background: '#ffffff', 
+                border: '1px solid var(--border-gov)', 
+                borderRadius: '8px', 
+                padding: '1rem', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '8px',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                position: 'relative',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                cursor: 'pointer'
+              }}
+              title={`Click to inspect detailed ${engine.label} calculations report`}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ 
+                    color: getPfrieColor(engine.score), 
+                    background: `${getPfrieColor(engine.score)}15`, 
+                    borderRadius: '6px', 
+                    padding: '6px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    {engine.icon}
                   </div>
-
-                  {/* Scientific Metric Progress Bar with animated pulse */}
-                  <div style={{ marginTop: '4px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: '4px' }}>
-                      <span style={{ color: 'var(--text-muted)' }}>Efficiency Index:</span>
-                      <strong style={{ color: getPfrieColor(data.score) }}>{data.score}%</strong>
-                    </div>
-                    <div style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div 
-                        style={{ 
-                          width: `${data.score}%`, 
-                          height: '100%', 
-                          background: getPfrieColor(data.score), 
-                          borderRadius: '3px',
-                          transition: 'width 1s ease-in-out'
-                        }} 
-                      />
-                    </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--text-dark)' }}>{engine.label}</span>
+                    <span style={{ fontSize: '0.62rem', color: 'var(--text-muted)' }}>{engine.metric}</span>
                   </div>
-
-                  <p style={{ fontSize: '0.72rem', color: 'var(--text-body)', lineHeight: '1.4', margin: '4px 0 0' }}>{data.detail}</p>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                
+                <span style={{ 
+                  fontSize: '0.58rem', 
+                  fontWeight: 800, 
+                  color: getPfrieColor(engine.score),
+                  background: `${getPfrieColor(engine.score)}15`,
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  textTransform: 'uppercase'
+                }}>
+                  {engine.status}
+                </span>
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ marginTop: '4px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', marginBottom: '2px' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Efficiency Index:</span>
+                  <strong style={{ color: getPfrieColor(engine.score) }}>{engine.score}%</strong>
+                </div>
+                <div style={{ height: '6px', background: '#e2e8f0', borderRadius: '3px', overflow: 'hidden' }}>
+                  <div 
+                    style={{ 
+                      width: `${engine.score}%`, 
+                      height: '100%', 
+                      background: getPfrieColor(engine.score), 
+                      borderRadius: '3px',
+                      transition: 'width 1s ease-in-out'
+                    }} 
+                  />
+                </div>
+              </div>
+
+              <p style={{ fontSize: '0.68rem', color: 'var(--text-body)', lineHeight: '1.4', margin: '4px 0 0' }}>{engine.detail}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* SECTION 2: Bottom Grid containing IoT, Drones, Carbon, and Insurance (Scrollable container) */}
