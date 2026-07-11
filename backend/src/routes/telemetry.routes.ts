@@ -31,6 +31,28 @@ router.get('/status', async (req: Request, res: Response) => {
   });
 });
 
+const parseEWKBPolygon = (hex: string): number[][] | null => {
+  try {
+    const buffer = Buffer.from(hex, 'hex');
+    let offset = 5;
+    const type = buffer.readUInt32LE(0) === 1 ? buffer.readUInt32LE(1) : buffer.readUInt32BE(1);
+    if ((type & 0x20000000) !== 0) offset += 4;
+    offset += 4;
+    const numPoints = buffer.readUInt32LE(offset) === 1 ? buffer.readUInt32LE(offset) : buffer.readUInt32BE(offset);
+    offset += 4;
+    const points: number[][] = [];
+    for (let i = 0; i < numPoints; i++) {
+      const x = buffer.readDoubleLE(offset);
+      const y = buffer.readDoubleLE(offset + 8);
+      points.push([x, y]);
+      offset += 16;
+    }
+    return points;
+  } catch (e) {
+    return null;
+  }
+};
+
 // Telemetry Endpoint (Generates values & saves them to Supabase telemetry logs table if active)
 router.get('/telemetry', async (req: Request, res: Response) => {
   const farmId = req.query.farm_id as string;
@@ -59,8 +81,63 @@ router.get('/telemetry', async (req: Request, res: Response) => {
     }
   }
 
-  // Add a small live drift
-  const driftMoisture = Number((baseMoisture + (Math.random() - 0.5) * 1.5).toFixed(1));
+  // Retrieve exact GPS coordinates for the farm boundary
+  let lat = 23.5204; // Default Vidisha lat
+  let lng = 77.8189; // Default Vidisha lng
+
+  if (supabase && farmId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(farmId)) {
+    try {
+      const { data: farm } = await supabase
+        .from('farms')
+        .select('boundary')
+        .eq('id', farmId)
+        .single();
+
+      if (farm && farm.boundary) {
+        let coordinates = [[77.8189, 23.5204]];
+        if (typeof farm.boundary === 'string' && /^[0-9a-fA-F]+$/.test(farm.boundary)) {
+          const parsed = parseEWKBPolygon(farm.boundary);
+          if (parsed) coordinates = parsed;
+        } else if (typeof farm.boundary === 'string') {
+          try {
+            const matches = farm.boundary.match(/\(\((.*?)\)\)/);
+            if (matches && matches[1]) {
+              coordinates = matches[1].split(',').map((ptStr: string) => ptStr.trim().split(' ').map(Number));
+            }
+          } catch(e) {}
+        } else if (farm.boundary && farm.boundary.coordinates) {
+          coordinates = farm.boundary.coordinates[0];
+        }
+        if (coordinates && coordinates.length > 0) {
+          const avgLng = coordinates.reduce((sum, pt) => sum + pt[0], 0) / coordinates.length;
+          const avgLat = coordinates.reduce((sum, pt) => sum + pt[1], 0) / coordinates.length;
+          lng = avgLng;
+          lat = avgLat;
+        }
+      }
+    } catch (e) {
+      console.warn('[Telemetry Farm Boundary Lookup Error]', e);
+    }
+  }
+
+  // Fetch real-time soil moisture from Open-Meteo satellite grid
+  let soilMoistureValue = baseMoisture;
+  try {
+    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&hourly=soil_moisture_0_to_7cm`);
+    if (wRes.ok) {
+      const wData = await wRes.json() as any;
+      const hourlyMoisture = wData.hourly?.soil_moisture_0_to_7cm;
+      if (hourlyMoisture && hourlyMoisture.length > 0) {
+        // Open-Meteo gives volumetric soil moisture, e.g. 0.42 -> convert to %
+        soilMoistureValue = Number((hourlyMoisture[0] * 100).toFixed(1));
+      }
+    }
+  } catch (e) {
+    console.warn('[Telemetry Live Open-Meteo Soil Query Failed]', e);
+  }
+
+  // Add a small live drift for sensor feel
+  const driftMoisture = Number((soilMoistureValue + (Math.random() - 0.5) * 0.4).toFixed(1));
   const driftN = Math.max(10, Math.min(100, Math.round(baseN + (Math.random() - 0.5) * 2)));
   const driftP = Math.max(10, Math.min(100, Math.round(baseP + (Math.random() - 0.5) * 1.5)));
   const driftK = Math.max(10, Math.min(100, Math.round(baseK + (Math.random() - 0.5) * 2)));
