@@ -322,14 +322,20 @@ router.get('/voice/context', async (req: Request, res: Response) => {
     }
   }
 
-  // Live weather
+  // Live weather & satellite soil moisture
   try {
-    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,precipitation,wind_speed_10m`);
+    const wRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,precipitation,wind_speed_10m&hourly=soil_moisture_0_to_7cm`);
     if (wRes.ok) {
       const wData = await wRes.json() as any;
       weather.temp = wData.current?.temperature_2m ?? weather.temp;
       weather.rain = wData.current?.precipitation ?? weather.rain;
       weather.wind = wData.current?.wind_speed_10m ?? weather.wind;
+
+      // Extract current hourly soil moisture index and convert to percentage (e.g. 0.45 -> 45%)
+      const hourlyMoisture = wData.hourly?.soil_moisture_0_to_7cm;
+      if (hourlyMoisture && hourlyMoisture.length > 0) {
+        telemetry.moisture = Number((hourlyMoisture[0] * 100).toFixed(1));
+      }
     }
   } catch (_e) {}
 
